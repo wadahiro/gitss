@@ -1,0 +1,25 @@
+.grid {
+    margin: 15px auto;
+}
+
+.row {
+    margin: 15px auto;
+}
+
+.noPrintGrid {
+    margin: 15px auto;
+}
+
+.printGrid {
+    display: none;
+    margin: 15px auto;
+}
+
+@media print {
+    .noPrintGrid {
+        display: none;
+    }
+    .printGrid {
+        display: block;
+    }
+}

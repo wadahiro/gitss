@@ -17,53 +17,56 @@ var Version = "SNAPSHOT"     // inject by LDFLAGS build option
 var BuildTarget = "develop"  // inject by LDFLAGS build option
 
 func main() {
-	// if BuildTarget == "develop" {
-	// 	RunServer(nil)
-	// } else {
-	app := cli.NewApp()
-	app.Name = "GitS"
-	app.Usage = "Code Search for Git repositories."
-	app.Version = Version
-	app.Author = "Hiroyuki Wada"
-	app.Email = "wadahiro@gmail.com"
-	app.Commands = []cli.Command{
-		{
-			Name:   "server",
-			Usage:  "Run GitS server",
-			Action: RunServer,
-		},
-		{
-			Name:   "import",
-			Usage:  "Import a Git repository",
-			ArgsUsage: "[project name] [git repository url]",
-			Action: ImportGitRepository,
-		},
+	if BuildTarget == "develop" {
+		RunServer(nil)
+	} else {
+		app := cli.NewApp()
+		app.Name = "GitS"
+		app.Usage = "Code Search for Git repositories."
+		app.Version = Version
+		app.Author = "Hiroyuki Wada"
+		app.Email = "wadahiro@gmail.com"
+		app.Commands = []cli.Command{
+			{
+				Name:   "server",
+				Usage:  "Run GitS server",
+				Action: RunServer,
+			},
+			{
+				Name:      "import",
+				Usage:     "Import a Git repository",
+				ArgsUsage: "[project name] [git repository url]",
+				Action:    ImportGitRepository,
+			},
+		}
+		app.Flags = []cli.Flag{
+			cli.IntFlag{
+				Name:  "port",
+				Value: 3000,
+				Usage: "port number",
+			},
+			cli.StringFlag{
+				Name:  "data",
+				Value: "./data",
+				Usage: "data directory",
+			},
+		}
+		app.Run(os.Args)
 	}
-	app.Flags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "port",
-			Value: 3000,
-			Usage: "port number",
-		},
-		cli.StringFlag{
-			Name:  "data",
-			Value: "./data",
-			Usage: "data directory",
-		},
-	}
-	app.Run(os.Args)
-	// }
 }
 
 func RunServer(c *cli.Context) {
 	debugMode := isDebugMode()
 
 	port := "3000"
-	if c.GlobalInt("port") != 0 {
+	if c != nil && c.GlobalInt("port") != 0 {
 		port = strconv.Itoa(c.GlobalInt("port"))
 	}
 
-	dataDir := c.GlobalString("data")
+	dataDir := "./data"
+	if c != nil {
+		dataDir = c.GlobalString("data")
+	}
 
 	log.Println("-------------- GitS Server --------------")
 	log.Println("VERSION: ", Version)
@@ -78,8 +81,10 @@ func RunServer(c *cli.Context) {
 	}
 
 	// service.RunSyncScheduler(repo)
+	
+	indexer := indexer.NewESIndexer()
 
-	// initRouter(repo, port, debugMode)
+	initRouter(indexer, port, debugMode)
 
 	log.Println("Started GitS Server.")
 }

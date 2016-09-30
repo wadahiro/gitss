@@ -1,0 +1,14 @@
+{
+  "passPerPreset": true,
+  "presets": [
+    "es2015",
+    "stage-3"
+  ],
+  "env": {
+    "development": {
+      "plugins": [
+        "react-hot-loader/babel"
+      ]
+    }
+  }
+}

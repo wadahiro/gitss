@@ -1,0 +1,22 @@
+{
+    "buildOnSave": false,
+    "compileOnSave": false,
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "jsx": "react",
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "declaration": false,
+        "newLine": "LF",
+        "rootDir": "client",
+        "inlineSourceMap": true,
+        "sourceMap": false
+    },
+    "exclude": [
+        "lib",
+        "typings/main.d.ts",
+        "typings/main",
+        "node_modules"
+    ]
+}
