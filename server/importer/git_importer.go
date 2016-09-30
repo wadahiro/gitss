@@ -19,9 +19,10 @@ import (
 type GitImporter struct {
 	dataDir string
 	indexer indexer.Indexer
+	debutMode bool
 }
 
-func NewGitImporter(dataDir string, indexer indexer.Indexer) *GitImporter {
+func NewGitImporter(dataDir string, indexer indexer.Indexer, debugMode bool) *GitImporter {
 	return &GitImporter{dataDir: dataDir, indexer: indexer}
 }
 
@@ -81,6 +82,8 @@ func (g *GitImporter) CreateBranchIndex(repo *GitRepo, branchName string) {
 			return nil
 		}
 
+		blobHash := f.Hash.String()
+
 		blob, err := repo.Blob(f.Hash)
 		if err != nil {
 			return nil
@@ -92,14 +95,14 @@ func (g *GitImporter) CreateBranchIndex(repo *GitRepo, branchName string) {
 		buf.ReadFrom(reader)
 		content := buf.String()
 
-		g.CreateFileIndex(repo.Project, repo.Repo, branchName, f.Name, f.Hash.String(), content)
+		g.CreateFileIndex(repo.Project, repo.Repo, branchName, f.Name, blobHash, content)
 
 		return nil
 	})
 }
 
 func (g *GitImporter) CreateFileIndex(project string, repo string, branch string, filePath string, blob string, content string) {
-	g.indexer.CreateFileIndex(project, repo, branch, filePath, blob, content)
+	g.indexer.UpsertFileIndex(project, repo, branch, filePath, blob, content)
 }
 
 type GitRepo struct {

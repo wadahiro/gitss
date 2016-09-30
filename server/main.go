@@ -106,7 +106,7 @@ func ImportGitRepository(c *cli.Context) {
 	log.Println("--------------------------------------------------------")
 
 	indexer := indexer.NewESIndexer()
-	importer := importer.NewGitImporter(dataDir, indexer)
+	importer := importer.NewGitImporter(dataDir, indexer, debugMode)
 	importer.Run(projectName, gitRepoUrl)
 }
 
