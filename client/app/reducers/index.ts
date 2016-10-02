@@ -20,16 +20,35 @@ export interface AppStateHistory {
 }
 
 export interface AppState {
+    result: SearchResult[]
 }
 
+export interface SearchResult {
+    blob: string;
+    content: string;
+    metadata: FileMetadata[];
+}
+
+export interface FileMetadata {
+    project: string;
+    repo: string;
+    refs: string;
+    path: string;
+    ext: string;
+}
 
 function init(): AppState {
     return {
+        result: []
     };
 }
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
+        case 'SEARCH':
+            return Object.assign({}, state, {
+                result: action.payload.result
+            });
     }
 
     return state;

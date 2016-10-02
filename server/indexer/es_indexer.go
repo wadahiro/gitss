@@ -1,8 +1,9 @@
 package indexer
 
 import (
-	"log"
 	"encoding/json"
+	// "fmt"
+	"log"
 	"path"
 	// "strings"
 
@@ -25,6 +26,15 @@ type Metadata struct {
 	Refs    string `json:"refs"`
 	Path    string `json:"path"`
 	Ext     string `json:"ext"`
+}
+
+type Hit struct {
+	Source Source `json:"_source"`
+	Highlight map[string][]string `json:"highlight"`
+}
+type Source struct {
+	Blob string `json:"blob"`
+	Metadata []Metadata `json:"metadata"`
 }
 
 func NewESIndexer() Indexer {
@@ -177,7 +187,12 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 		if err := json.Unmarshal(*get.Source, &fileIndex); err != nil {
 			return err
 		}
-		f := func(x Metadata, i int) bool { return true }
+		f := func(x Metadata, i int) bool {
+			return x.Project == project &&
+				x.Repo == repo &&
+				x.Refs == branch &&
+				x.Path == filePath
+		}
 		found := find(f, fileIndex.Metadata)
 		if found != nil {
 			fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext})
@@ -214,6 +229,34 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 
 	log.Println("Indexed!")
 	return nil
+}
+
+func (esi *ESIndexer) SearchQuery(query string) []Hit {
+	termQuery := elastic.NewTermsQuery("content", query)
+	searchResult, _ := esi.client.Search().
+		Index("gosource").                       // search in index "twitter"
+		Query(termQuery). // specify the query
+		Highlight(elastic.NewHighlight().Field("content")).
+		Sort("metadata.path", true). // sort by "user" field, ascending
+		From(0).Size(10).            // take documents 0-9
+		Pretty(true).                // pretty print request and response JSON
+		Do()                         // execute
+
+	list := []Hit{}
+	if searchResult.Hits.TotalHits > 0 {
+		for _, hit := range searchResult.Hits.Hits {
+			// hit.Index contains the name of the index
+
+			// Deserialize hit.Source into a Tweet (could also be just a map[string]interface{}).
+			var s Source
+			json.Unmarshal(*hit.Source, &s)
+			h := &Hit{Source: s, Highlight: hit.Highlight}
+			// log.Println("highlight", h)
+			
+			list = append(list, *h)
+		}
+	}
+	return list
 }
 
 func find(f func(s Metadata, i int) bool, s []Metadata) *Metadata {

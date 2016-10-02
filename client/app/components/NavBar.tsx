@@ -47,7 +47,8 @@ export function NavBar(props) {
                                     type='search'
                                     hintText='Search'
                                     underlineShow={false}
-                                    fullWidth={true} />
+                                    fullWidth={true}
+                                    onKeyDown={props.onKeyDown} />
                             } disabled leftIcon={<SearchIcon />}>
                             </ListItem>
                         </List>

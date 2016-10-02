@@ -1,15 +1,31 @@
 import * as React from 'react';
+import { Dispatch, Action } from 'redux';
+import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
 import { NavBar } from '../components/NavBar';
 import { Grid, Row, Col } from '../components/Grid';
+import { RootState } from '../reducers';
+import * as Actions from '../actions';
 
-export default class Layout extends React.Component<any, void> {
+interface Props {
+    dispatch: Dispatch<Action>
+}
+
+class Layout extends React.Component<Props, void> {
+
+    handleKeyDown = (e: KeyboardEvent) => {
+        // e.preventDefault();
+
+        if (e.keyCode === 13) {
+            Actions.search(this.props.dispatch, e.target['value']);
+        }
+    };
 
     render() {
         return (
             <div>
-                <NavBar />
+                <NavBar onKeyDown={this.handleKeyDown} />
                 <Grid>
                     <Row>
                         <Col xs={12}>
@@ -21,3 +37,13 @@ export default class Layout extends React.Component<any, void> {
         );
     }
 }
+
+function mapStateToProps(state: RootState, props: Props): any {
+    return {};
+}
+
+const LayoutContainer = connect(
+        mapStateToProps
+)(Layout);
+
+export default LayoutContainer;
