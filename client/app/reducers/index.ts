@@ -24,6 +24,14 @@ export interface AppState {
 }
 
 export interface SearchResult {
+    _source: Source;
+    highlight: Highlight[];
+}
+export interface Highlight {
+    offset: number;
+    content: string;
+}
+export interface Source {
     blob: string;
     content: string;
     metadata: FileMetadata[];

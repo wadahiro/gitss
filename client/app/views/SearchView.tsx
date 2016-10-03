@@ -27,9 +27,9 @@ class SearchView extends React.Component<Props, void> {
                 <Divider/>
                 {result.map(x => {
                     return (
-                        <Row key={x.blob}>
+                        <Row key={x._source.blob}>
                             <Col xs={12}>
-                                <FileContent metadata={x.metadata} content={x.content} />
+                                <FileContent metadata={x._source.metadata} contents={x.highlight} />
                             </Col>
                         </Row>
                     );

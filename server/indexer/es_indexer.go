@@ -2,6 +2,9 @@ package indexer
 
 import (
 	"encoding/json"
+	"regexp"
+	"strconv"
+	"strings"
 	// "fmt"
 	"log"
 	"path"
@@ -30,12 +33,19 @@ type Metadata struct {
 
 type Hit struct {
 	Source Source `json:"_source"`
-	Highlight map[string][]string `json:"highlight"`
+	// Highlight map[string][]string `json:"highlight"`
+	Highlight []HighlightSource `json:"highlight"`
 }
 type Source struct {
-	Blob string `json:"blob"`
+	Blob     string     `json:"blob"`
 	Metadata []Metadata `json:"metadata"`
 }
+type HighlightSource struct {
+	Offset  int    `json:"offset"`
+	Content string `json:"content"`
+}
+
+var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
 
 func NewESIndexer() Indexer {
 	client, err := elastic.NewClient(elastic.SetURL())
@@ -48,7 +58,9 @@ func NewESIndexer() Indexer {
 }
 
 func (esi *ESIndexer) Init() {
-	esi.client.CreateIndex("gosource").BodyString(`
+
+	// esi.client.DeleteIndex("gosource").Do()
+	_, err := esi.client.CreateIndex("gosource").BodyString(`
 {
 	settings: {
 		analysis: {
@@ -62,6 +74,14 @@ func (esi *ESIndexer) Init() {
 					language: "greek"
 				}
 			},
+			char_filter: {
+				remove_tags: {
+					type: "pattern_replace",
+					pattern: "^\\[[0-9]+\\]\\u0020",
+					flags: "MULTILINE",
+					replacement: ""
+				}
+			},
 			analyzer: {
 				path_analyzer: {
 					type: "custom",
@@ -70,6 +90,7 @@ func (esi *ESIndexer) Init() {
 				kuromoji_analyzer: {
 					type: "custom",
 					tokenizer: "kuromoji_tokenizer",
+					char_filter: ["remove_tags"],
 					filter: ["kuromoji_baseform", "pos_filter", "greek_lowercase_filter", "cjk_width"]
 				}
 			},
@@ -139,7 +160,7 @@ func (esi *ESIndexer) Init() {
 							index: "not_analyzed"
 						}
 					}
-				}
+				},
 				contents: {
 					type: "string",
 					index_options: "offsets",
@@ -150,6 +171,10 @@ func (esi *ESIndexer) Init() {
 	}
 }
 		`).Do()
+
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func (esi *ESIndexer) CreateFileIndex(project string, repo string, branch string, filePath string, blob string, content string) error {
@@ -211,7 +236,13 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 		}
 
 	} else {
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: content}
+		lines := strings.Split(content, "\n")
+		newLines := []string{}
+		for i, l := range lines {
+			newLines = append(newLines, "["+strconv.Itoa(i+1)+"] "+l)
+		}
+
+		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
 
 		_, err := esi.client.Index().
 			Index("gosource").
@@ -232,15 +263,22 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 }
 
 func (esi *ESIndexer) SearchQuery(query string) []Hit {
-	termQuery := elastic.NewTermsQuery("content", query)
-	searchResult, _ := esi.client.Search().
-		Index("gosource").                       // search in index "twitter"
-		Query(termQuery). // specify the query
-		Highlight(elastic.NewHighlight().Field("content")).
+	// termQuery := elastic.NewTermsQuery("content", strings.Split(query, " "))
+	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
+	searchResult, err := esi.client.Search().
+		Index("gosource"). // search in index "twitter"
+		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("blob", "metadata")).
+		Query(q). // specify the query
+		Highlight(elastic.NewHighlight().Field("content").PreTags("@GITK_MARK_PRE@").PostTags("@GITK_MARK_POST@")).
 		Sort("metadata.path", true). // sort by "user" field, ascending
 		From(0).Size(10).            // take documents 0-9
 		Pretty(true).                // pretty print request and response JSON
 		Do()                         // execute
+
+	if err != nil {
+		log.Println("error", err)
+		return []Hit{}
+	}
 
 	list := []Hit{}
 	if searchResult.Hits.TotalHits > 0 {
@@ -250,10 +288,30 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 			// Deserialize hit.Source into a Tweet (could also be just a map[string]interface{}).
 			var s Source
 			json.Unmarshal(*hit.Source, &s)
-			h := &Hit{Source: s, Highlight: hit.Highlight}
-			// log.Println("highlight", h)
-			
-			list = append(list, *h)
+
+			hsList := []HighlightSource{}
+			for _, hc := range hit.Highlight["content"] {
+				list := []string{}
+				first := 0
+				for _, l := range strings.Split(hc, "\n") {
+					groups := LINE_TAG.FindAllStringSubmatch(l, 1)
+					if len(groups) == 1 {
+						if first == 0 {
+							if strings.TrimSpace(groups[0][2]) != "" {
+								first, _ = strconv.Atoi(groups[0][1])
+								list = append(list, groups[0][2])
+							}
+						} else {
+							list = append(list, groups[0][2])
+						}
+					}
+				}
+				hs := HighlightSource{Offset: first, Content: strings.Join(list, "\n")}
+				hsList = append(hsList, hs)
+			}
+
+			h := Hit{Source: s, Highlight: hsList}
+			list = append(list, h)
 		}
 	}
 	return list

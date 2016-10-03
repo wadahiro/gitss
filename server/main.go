@@ -84,7 +84,7 @@ func RunServer(c *cli.Context) {
 	
 	indexer := indexer.NewESIndexer()
 
-	initRouter(indexer, port, debugMode)
+	initRouter(indexer, port, debugMode, dataDir)
 
 	log.Println("Started GitS Server.")
 }

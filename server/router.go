@@ -16,7 +16,7 @@ import (
 	"github.com/wadahiro/gits/server/indexer"
 )
 
-func initRouter(indexer indexer.Indexer, port string, debugMode bool) {
+func initRouter(indexer indexer.Indexer, port string, debugMode bool, dataDir string) {
 	if !debugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -27,6 +27,10 @@ func initRouter(indexer indexer.Indexer, port string, debugMode bool) {
 
 	r.Use(func(c *gin.Context) {
 		c.Set("indexer", indexer)
+	})
+
+	r.Use(func(c *gin.Context) {
+		c.Set("dataDir", dataDir)
 	})
 
 	// r.LoadHTMLGlob("server/templates/*")
