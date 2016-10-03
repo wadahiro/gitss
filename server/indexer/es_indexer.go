@@ -219,7 +219,7 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 				x.Path == filePath
 		}
 		found := find(f, fileIndex.Metadata)
-		if found != nil {
+		if found == nil {
 			fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext})
 		}
 
