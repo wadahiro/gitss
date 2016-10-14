@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"strconv"
@@ -9,12 +10,14 @@ import (
 	"log"
 	"path"
 	// "strings"
+	"github.com/wadahiro/gits/server/repo"
 
 	"gopkg.in/olivere/elastic.v3"
 )
 
 type ESIndexer struct {
 	client *elastic.Client
+	reader *repo.GitRepoReader
 }
 
 type FileIndex struct {
@@ -47,15 +50,18 @@ type HighlightSource struct {
 
 var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
 
-func NewESIndexer() Indexer {
+func NewESIndexer(reader *repo.GitRepoReader) Indexer {
 	client, err := elastic.NewClient(elastic.SetURL())
 	if err != nil {
 		panic(err)
 	}
-	i := &ESIndexer{client: client}
+	i := &ESIndexer{client: client, reader: reader}
 	i.Init()
 	return i
 }
+
+const PRE_TAG = "\u0001"
+const POST_TAG = "\u0001"
 
 func (esi *ESIndexer) Init() {
 
@@ -269,7 +275,7 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 		Index("gosource"). // search in index "twitter"
 		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("blob", "metadata")).
 		Query(q). // specify the query
-		Highlight(elastic.NewHighlight().Field("content").PreTags("@GITK_MARK_PRE@").PostTags("@GITK_MARK_POST@")).
+		Highlight(elastic.NewHighlight().Field("content").PreTags(PRE_TAG).PostTags(POST_TAG)).
 		Sort("metadata.path", true). // sort by "user" field, ascending
 		From(0).Size(10).            // take documents 0-9
 		Pretty(true).                // pretty print request and response JSON
@@ -289,21 +295,31 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 			var s Source
 			json.Unmarshal(*hit.Source, &s)
 
+			text := getFileContent(esi.reader, &s)
+
+			log.Println("t", text)
+
 			hsList := []HighlightSource{}
 			for _, hc := range hit.Highlight["content"] {
 				list := []string{}
 				first := 0
-				for _, l := range strings.Split(hc, "\n") {
+				for num, l := range strings.Split(hc, "\n") {
 					groups := LINE_TAG.FindAllStringSubmatch(l, 1)
 					if len(groups) == 1 {
 						if first == 0 {
-							if strings.TrimSpace(groups[0][2]) != "" {
-								first, _ = strconv.Atoi(groups[0][1])
-								list = append(list, groups[0][2])
+							first, _ = strconv.Atoi(groups[0][1])
+							if num > 0 {
+								first--
 							}
+							// Because of starting "[1]"
+							first++
+							list = append(list, groups[0][2])
 						} else {
 							list = append(list, groups[0][2])
 						}
+					} else {
+						// fallback
+
 					}
 				}
 				hs := HighlightSource{Offset: first, Content: strings.Join(list, "\n")}
@@ -334,4 +350,17 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 		}
 	}
 	return ans
+}
+
+func getFileContent(reader *repo.GitRepoReader, s *Source) string {
+	repo := reader.GetGitRepo(s.Metadata[0].Project, s.Metadata[0].Repo)
+	blob, _ := repo.GetBlob(s.Blob)
+
+	r, _ := blob.Reader()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(r)
+	text := buf.String()
+
+	return text
 }

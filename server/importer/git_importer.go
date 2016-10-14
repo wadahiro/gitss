@@ -10,20 +10,20 @@ import (
 	// "path/filepath"
 
 	"github.com/wadahiro/gits/server/indexer"
+	"github.com/wadahiro/gits/server/repo"
 
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v4"
-	core "gopkg.in/src-d/go-git.v4/core"
 )
 
 type GitImporter struct {
 	dataDir string
 	indexer indexer.Indexer
-	debutMode bool
+	debugMode bool
 }
 
 func NewGitImporter(dataDir string, indexer indexer.Indexer, debugMode bool) *GitImporter {
-	return &GitImporter{dataDir: dataDir, indexer: indexer}
+	return &GitImporter{dataDir: dataDir, indexer: indexer, debugMode: debugMode}
 }
 
 func (g *GitImporter) Run(projectName string, url string) {
@@ -49,7 +49,7 @@ func (g *GitImporter) Run(projectName string, url string) {
 	FetchAll(repoPath)
 	// git.Pull(repoPath, git.PullRemoteOptions{All: true})
 
-	repo, err := NewGitRepo(projectName, repoName, repoPath)
+	repo, err := repo.NewGitRepo(projectName, repoName, repoPath)
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +62,7 @@ func (g *GitImporter) Run(projectName string, url string) {
 	}
 }
 
-func (g *GitImporter) CreateBranchIndex(repo *GitRepo, branchName string) {
+func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	commitId, _ := repo.GetBranchCommitID(branchName)
 
 	fmt.Println("Commit:", commitId)
@@ -72,7 +72,7 @@ func (g *GitImporter) CreateBranchIndex(repo *GitRepo, branchName string) {
 
 	// commit, err := repo.GetCommit(commitId)
 
-	commit, _ := repo.Commit(commitId)
+	commit, _ := repo.GetCommit(commitId)
 	tree, _ := commit.Tree()
 
 	tree.Files().ForEach(func(f *git.File) error {
@@ -103,41 +103,6 @@ func (g *GitImporter) CreateBranchIndex(repo *GitRepo, branchName string) {
 
 func (g *GitImporter) CreateFileIndex(project string, repo string, branch string, filePath string, blob string, content string) {
 	g.indexer.UpsertFileIndex(project, repo, branch, filePath, blob, content)
-}
-
-type GitRepo struct {
-	Project  string
-	Repo     string
-	Path     string
-	gitmRepo *gitm.Repository
-	repo     *git.Repository
-}
-
-func NewGitRepo(projectName string, repoName string, repoPath string) (*GitRepo, error) {
-	gitmRepo, err := gitm.OpenRepository(repoPath)
-	if err != nil {
-		return nil, err
-	}
-
-	repo, _ := git.NewFilesystemRepository(repoPath)
-
-	return &GitRepo{Project: projectName, Repo: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: repo}, nil
-}
-
-func (r *GitRepo) GetBranches() ([]string, error) {
-	return r.gitmRepo.GetBranches()
-}
-
-func (r *GitRepo) GetBranchCommitID(name string) (string, error) {
-	return r.gitmRepo.GetBranchCommitID(name)
-}
-
-func (r *GitRepo) Commit(commitId string) (*git.Commit, error) {
-	return r.repo.Commit(core.NewHash(commitId))
-}
-
-func (r *GitRepo) Blob(hash core.Hash) (*git.Blob, error) {
-	return r.repo.Blob(hash)
 }
 
 func FetchAll(repoPath string) error {

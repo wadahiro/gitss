@@ -9,6 +9,7 @@ import (
 	"github.com/codegangsta/cli"
 
 	"github.com/wadahiro/gits/server/importer"
+	"github.com/wadahiro/gits/server/repo"
 	"github.com/wadahiro/gits/server/indexer"
 )
 
@@ -82,7 +83,8 @@ func RunServer(c *cli.Context) {
 
 	// service.RunSyncScheduler(repo)
 	
-	indexer := indexer.NewESIndexer()
+	reader := repo.NewGitRepoReader(dataDir, debugMode)
+	indexer := indexer.NewESIndexer(reader)
 
 	initRouter(indexer, port, debugMode, dataDir)
 
@@ -110,7 +112,8 @@ func ImportGitRepository(c *cli.Context) {
 	log.Println("GIT_REPOSITORY_URL: ", gitRepoUrl)
 	log.Println("--------------------------------------------------------")
 
-	indexer := indexer.NewESIndexer()
+	reader := repo.NewGitRepoReader(dataDir, debugMode)
+	indexer := indexer.NewESIndexer(reader)
 	importer := importer.NewGitImporter(dataDir, indexer, debugMode)
 	importer.Run(projectName, gitRepoUrl)
 }
