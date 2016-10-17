@@ -3,13 +3,13 @@ import * as React from 'react';
 import Chip from 'material-ui/Chip';
 import { indigo50 } from 'material-ui/styles/colors';
 
-import { FileMetadata, Highlight } from '../reducers';
+import { FileMetadata, Preview } from '../reducers';
 
 const CRLF = /\r\n|\r|\n/g;
 
 interface Props {
     metadata: FileMetadata[];
-    contents: Highlight[];
+    preview: Preview[];
 }
 
 interface State {
@@ -63,8 +63,8 @@ export class FileContent extends React.Component<Props, State>{
             }
 
             const pre = document.createElement('pre');
-            pre.setAttribute('data-enlighter-lineoffset', String(offset));
-            pre.setAttribute('data-enlighter-highlight', highlightNums.join(','));
+            pre.setAttribute('data-enlighter-lineoffset', String(offset + 1));
+            pre.setAttribute('data-enlighter-highlight', highlightNums.map(x => x + 1).join(','));
             pre.appendChild(document.createTextNode(content));
 
             const div = document.createElement('div');
@@ -82,13 +82,13 @@ export class FileContent extends React.Component<Props, State>{
     }
 
     render() {
-        const { metadata, contents} = this.props;
+        const { metadata, preview} = this.props;
 
-        contents.sort((a, b) => {
-            if ( a.offset < b.offset) {
+        preview.sort((a, b) => {
+            if (a.offset < b.offset) {
                 return -1;
             }
-            if ( a.offset > b.offset) {
+            if (a.offset > b.offset) {
                 return 1;
             }
             return 0;
@@ -118,26 +118,10 @@ export class FileContent extends React.Component<Props, State>{
                         );
                     })}
                 </div>
-                {contents.map((content, i) => {
-
-                    // stript
-                    const codeList = content.content.split(CRLF);
-
-                    // calc highlight lines
-                    const highlightNums = codeList.reduce((s, x, index) => {
-                        if (x.search(/\u0001/g) !== -1) {
-                            s.push(index + content.offset);
-                        }
-                        return s;
-                    }, []);
-
-                    // format
-                    const code = codeList.join('\n')
-                        .replace(/\u0001/g, '');
-
+                {preview.map((pre, i) => {
                     return (
-                        <div key={content.offset}>
-                            {this.highlight(content.offset, highlightNums, code, metadata[0].ext)}
+                        <div key={pre.offset}>
+                            {this.highlight(pre.offset, pre.hits, pre.preview, metadata[0].ext)}
                         </div>
                     );
                 })}

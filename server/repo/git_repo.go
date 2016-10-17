@@ -7,6 +7,8 @@ import (
 	// "os"
 	// "path/filepath"
 	"fmt"
+	// "strings"
+	"github.com/wadahiro/GitS/server/util"
 
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v4"
@@ -73,3 +75,17 @@ func (r *GitRepo) Blob(hash core.Hash) (*git.Blob, error) {
 	return r.repo.Blob(hash)
 }
 
+func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []*util.TextPreview {
+	blob, _ := r.GetBlob(blobId)
+	reader, _ := blob.Reader()
+
+	previews := util.FilterTextPreview(reader, filter, before, after)
+
+	return previews
+}
+
+type Source struct {
+	Offset  int    `json:"offset"`
+	Preview string `json:"preview"`
+	Hits    []int  `json:"hits"`
+}

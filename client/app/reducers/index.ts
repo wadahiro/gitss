@@ -25,11 +25,12 @@ export interface AppState {
 
 export interface SearchResult {
     _source: Source;
-    highlight: Highlight[];
+    preview: Preview[];
 }
-export interface Highlight {
+export interface Preview {
     offset: number;
-    content: string;
+    preview: string;
+    hits: number[];
 }
 export interface Source {
     blob: string;

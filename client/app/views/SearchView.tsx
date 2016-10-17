@@ -29,7 +29,7 @@ class SearchView extends React.Component<Props, void> {
                     return (
                         <Row key={x._source.blob}>
                             <Col xs={12}>
-                                <FileContent metadata={x._source.metadata} contents={x.highlight} />
+                                <FileContent metadata={x._source.metadata} preview={x.preview} />
                             </Col>
                         </Row>
                     );

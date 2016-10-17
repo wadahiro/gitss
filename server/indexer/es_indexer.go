@@ -12,6 +12,8 @@ import (
 	// "strings"
 	"github.com/wadahiro/gits/server/repo"
 
+	// "fmt"
+
 	"gopkg.in/olivere/elastic.v3"
 )
 
@@ -24,28 +26,6 @@ type FileIndex struct {
 	Blob     string     `json:"blob"`
 	Metadata []Metadata `json:"metadata"`
 	Content  string     `json:"content"`
-}
-
-type Metadata struct {
-	Project string `json:"project"`
-	Repo    string `json:"repo"`
-	Refs    string `json:"refs"`
-	Path    string `json:"path"`
-	Ext     string `json:"ext"`
-}
-
-type Hit struct {
-	Source Source `json:"_source"`
-	// Highlight map[string][]string `json:"highlight"`
-	Highlight []HighlightSource `json:"highlight"`
-}
-type Source struct {
-	Blob     string     `json:"blob"`
-	Metadata []Metadata `json:"metadata"`
-}
-type HighlightSource struct {
-	Offset  int    `json:"offset"`
-	Content string `json:"content"`
 }
 
 var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
@@ -62,6 +42,10 @@ func NewESIndexer(reader *repo.GitRepoReader) Indexer {
 
 const PRE_TAG = "\u0001"
 const POST_TAG = "\u0001"
+
+var HIT_TAG = regexp.MustCompile(`\x{0001}(.*)\x{0001}`)
+
+var CRLF_PATTERN = regexp.MustCompile(`\r?\n|\r`)
 
 func (esi *ESIndexer) Init() {
 
@@ -287,6 +271,8 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 	}
 
 	list := []Hit{}
+	hitWordsSet := make(map[string]struct{})
+
 	if searchResult.Hits.TotalHits > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			// hit.Index contains the name of the index
@@ -295,41 +281,43 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 			var s Source
 			json.Unmarshal(*hit.Source, &s)
 
-			text := getFileContent(esi.reader, &s)
+			// find highlighted words
+			hitWordsSet = mergeSet(hitWordsSet, getHitWords(hit.Highlight["content"]))
 
-			log.Println("t", text)
+			log.Println("hitWords", hitWordsSet)
 
-			hsList := []HighlightSource{}
-			for _, hc := range hit.Highlight["content"] {
-				list := []string{}
-				first := 0
-				for num, l := range strings.Split(hc, "\n") {
-					groups := LINE_TAG.FindAllStringSubmatch(l, 1)
-					if len(groups) == 1 {
-						if first == 0 {
-							first, _ = strconv.Atoi(groups[0][1])
-							if num > 0 {
-								first--
-							}
-							// Because of starting "[1]"
-							first++
-							list = append(list, groups[0][2])
-						} else {
-							list = append(list, groups[0][2])
-						}
-					} else {
-						// fallback
+			// get the file text
+			gitRepo := getGitRepo(esi.reader, &s)
 
+			// make preview
+			preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
+				for k, _ := range hitWordsSet {
+					if strings.Contains(line, k) {
+						log.Println(k)
+						return true
 					}
 				}
-				hs := HighlightSource{Offset: first, Content: strings.Join(list, "\n")}
-				hsList = append(hsList, hs)
-			}
+				return false
+			}, 3, 3)
 
-			h := Hit{Source: s, Highlight: hsList}
+			log.Println(preview)
+
+			// hsList := []HighlightSource{}
+
+			// for _, hc := range hit.Highlight["content"] {
+			// 	groups := HIT_TAG.FindAllStringSubmatch(l, -1)
+			// 	for _, group := range groups {
+			// 		hitWordsSet[group[1]] = struct{}{}
+			// 	}
+			// 	// hs := HighlightSource{Offset: first, Content: strings.Join(list, "\n")}
+			// 	// hsList = append(hsList, hs)
+			// }
+
+			h := Hit{Source: s, Preview: preview}
 			list = append(list, h)
 		}
 	}
+
 	return list
 }
 
@@ -352,8 +340,12 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func getFileContent(reader *repo.GitRepoReader, s *Source) string {
+func getGitRepo(reader *repo.GitRepoReader, s *Source) *repo.GitRepo {
 	repo := reader.GetGitRepo(s.Metadata[0].Project, s.Metadata[0].Repo)
+	return repo
+}
+
+func getFileContent(repo *repo.GitRepo, s *Source) string {
 	blob, _ := repo.GetBlob(s.Blob)
 
 	r, _ := blob.Reader()
@@ -363,4 +355,24 @@ func getFileContent(reader *repo.GitRepoReader, s *Source) string {
 	text := buf.String()
 
 	return text
+}
+
+func getHitWords(contents []string) map[string]struct{} {
+	hitWordsSet := make(map[string]struct{})
+
+	for _, content := range contents {
+		groups := HIT_TAG.FindAllStringSubmatch(content, -1)
+		// log.Println("hit", len(groups))
+		for _, group := range groups {
+			for i, g := range group {
+				if i == 0 {
+					continue
+				}
+				// log.Println("hit2", g)
+				hitWordsSet[g] = struct{}{}
+			}
+		}
+	}
+
+	return hitWordsSet
 }
