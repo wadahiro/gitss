@@ -75,7 +75,7 @@ func (r *GitRepo) Blob(hash core.Hash) (*git.Blob, error) {
 	return r.repo.Blob(hash)
 }
 
-func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []*util.TextPreview {
+func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
 	blob, _ := r.GetBlob(blobId)
 	reader, _ := blob.Reader()
 

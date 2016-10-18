@@ -11,7 +11,7 @@ import { FileContent } from '../components/FileContent';
 import { RootState, SearchResult } from '../reducers';
 
 interface Props {
-    result: SearchResult[]
+    result: SearchResult
 }
 
 class SearchView extends React.Component<Props, void> {
@@ -21,11 +21,11 @@ class SearchView extends React.Component<Props, void> {
             <Grid>
                 <Row>
                     <Col xs={12}>
-                        <h2>We’ve found {result.length} code results</h2>
+                        <h2>We’ve found {result.size} code results {result.time > 0 ? `(${result.time})` : ''}</h2>
                     </Col>
                 </Row>
                 <Divider/>
-                {result.map(x => {
+                {result.hits.map(x => {
                     return (
                         <Row key={x._source.blob}>
                             <Col xs={12}>

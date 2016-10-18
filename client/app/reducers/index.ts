@@ -20,10 +20,19 @@ export interface AppStateHistory {
 }
 
 export interface AppState {
-    result: SearchResult[]
+    result: SearchResult
 }
 
 export interface SearchResult {
+    time: number;
+    size: number;
+    limit: number;
+    current: number;
+    next: number;
+    isLastPage: boolean;
+    hits: Hit[];
+}
+export interface Hit {
     _source: Source;
     preview: Preview[];
 }
@@ -48,7 +57,15 @@ export interface FileMetadata {
 
 function init(): AppState {
     return {
-        result: []
+        result: {
+            time: -1,
+            size: 0,
+            limit: 0,
+            current: 0,
+            next: 0,
+            isLastPage: true,
+            hits: []
+        }
     };
 }
 

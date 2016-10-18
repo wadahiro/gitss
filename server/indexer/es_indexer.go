@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	// "fmt"
 	"log"
 	"path"
@@ -252,7 +253,15 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 	return nil
 }
 
-func (esi *ESIndexer) SearchQuery(query string) []Hit {
+func (esi *ESIndexer) SearchQuery(query string) SearchResult {
+	start := time.Now()
+	result := esi.search(query)
+	end := time.Now()
+
+	result.Time = (end.Sub(start)).Seconds()
+	return result
+}
+func (esi *ESIndexer) search(query string) SearchResult {
 	// termQuery := elastic.NewTermsQuery("content", strings.Split(query, " "))
 	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
 	searchResult, err := esi.client.Search().
@@ -267,7 +276,7 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 
 	if err != nil {
 		log.Println("error", err)
-		return []Hit{}
+		return SearchResult{}
 	}
 
 	list := []Hit{}
@@ -318,7 +327,7 @@ func (esi *ESIndexer) SearchQuery(query string) []Hit {
 		}
 	}
 
-	return list
+	return SearchResult{Hits: list, Size: searchResult.Hits.TotalHits}
 }
 
 func find(f func(s Metadata, i int) bool, s []Metadata) *Metadata {

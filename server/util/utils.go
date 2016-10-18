@@ -1,117 +1,85 @@
 package util
 
 import (
-	"bufio"
-	"container/ring"
-	"fmt"
+	// "fmt"
 	"io"
 	"strings"
 )
 
 type TextPreview struct {
-	Offset  int    `json:"offset"`
-	Preview string `json:"preview"`
-	Hits    []int  `json:"hits"`
+	Offset   int `json:"offset"`
+	previews []string
+	Preview  string `json:"preview"`
+	Hits     []int  `json:"hits"`
 }
 
-func FilterTextPreview(reader io.Reader, filter func(line string) bool, before int, after int) []*TextPreview {
-	scanner := bufio.NewScanner(reader)
-	lineNum := -1
+func FilterTextPreview(r io.Reader, filter func(line string) bool, before int, after int) []TextPreview {
+	scanner := NewLineScanner(r, 1024, before, after)
 
-	sourceList := []*TextPreview{}
+	previews := []TextPreview{}
 
-	nextBeforeList := ring.New(before)
-	var line string
-	hasPrev := false
-	eof := false
+	for scanner.HasNext() {
+		lineNum, line, ok := scanner.FindLine(filter)
 
-	for true {
-		mode := 0
-		offset := -1
-		lines := []string{}
-		hits := []int{}
-		beforeList := ring.New(before)
-		afterList := []string{}
+		var beforePreview *TextPreview
+		hasPreview := len(previews) > 0
 
-		// fmt.Println("start")
-
-		nextBeforeList.Do(func(v interface{}) {
-			if v != nil {
-				// fmt.Println("next", v)
-				beforeList.Value = v.(string)
-				beforeList = beforeList.Next()
-			}
-		})
-
-	L:
-		for true {
-			if !scanner.Scan() {
-				eof = true
-				break L
-			}
-			if hasPrev {
-				hasPrev = false
-				// fmt.Println("hasPrev", lineNum, line)
-			} else {
-				lineNum++
-				line = scanner.Text()
-				fmt.Println(lineNum, line)
-			}
-
-			switch mode {
-			case 0:
-				if filter(line) {
-					offset = lineNum
-					lines = append(lines, line)
-					hits = append(hits, lineNum)
-					mode = 1
-				} else {
-					beforeList.Value = line
-					beforeList = beforeList.Next()
-				}
-			case 1:
-				if filter(line) {
-					hits = append(hits, lineNum)
-					if len(afterList) == 0 {
-						lines = append(lines, line)
-					} else {
-						lines = append(lines, afterList...)
-						afterList = nil
-					}
-				} else {
-					if after < 1 {
-						hasPrev = true
-						break L
-					}
-					afterList = append(afterList, line)
-					nextBeforeList.Value = line
-					nextBeforeList = nextBeforeList.Next()
-
-					// fmt.Println("nextBefore", line)
-
-					if len(afterList) == after {
-						// fmt.Println("break")
-						break L
-					}
-				}
-			}
+		if hasPreview {
+			beforePreview = &previews[len(previews)-1]
 		}
-		if offset > -1 {
-			beforeLines := []string{}
-			beforeList.Do(func(v interface{}) {
-				if v != nil {
-					beforeLines = append(beforeLines, v.(string))
-				}
-			})
-			source := &TextPreview{Offset: offset - len(beforeLines), Preview: strings.Join(append(beforeLines, append(lines, afterList...)...), "\n"), Hits: hits}
-			sourceList = append(sourceList, source)
 
-			fmt.Println("hitsNum", hits)
-		}
-		if eof {
-			break
+		if ok {
+			before := scanner.GetBefore()
+			offset := lineNum - len(before)
+
+			// Checking need to merge with previous preview
+
+			if hasPreview {
+				lastLinuNum := beforePreview.Offset + len(beforePreview.previews) - 1
+				lastHitNum := beforePreview.Hits[len(beforePreview.Hits)-1]
+
+				// concat
+				if (lineNum - lastHitNum) <= scanner.GetAfterSize() {
+					appendPreview(beforePreview, lineNum, line)
+					continue
+				}
+
+				if offset <= (lastLinuNum + 1) {
+					// reduce duplication
+					start := lastLinuNum - offset
+					lines := append(before[start:], line)
+
+					appendPreview(beforePreview, lineNum, lines...)
+					continue
+				}
+				// fmt.Println("assert", lineNum, lastHitNum, offset)
+			}
+
+			// New preview
+			lines := append(before, line)
+			preview := TextPreview{Offset: offset, Hits: []int{lineNum}, previews: lines}
+
+			previews = append(previews, preview)
+
+		} else {
+			if hasPreview {
+				lastHitNum := beforePreview.Hits[len(beforePreview.Hits)-1]
+				if (lineNum - lastHitNum) <= scanner.GetAfterSize() {
+					beforePreview.previews = append(beforePreview.previews, line)
+					// fmt.Println("-----", line, scanner.GetLineNum())
+				}
+			}
 		}
 	}
 
-	return sourceList
+	for i := range previews {
+		previews[i].Preview = strings.Join(previews[i].previews, "\n")
+		previews[i].previews = nil
+	}
+	return previews
+}
+
+func appendPreview(preview *TextPreview, hitLinuNum int, line ...string) {
+	preview.Hits = append(preview.Hits, hitLinuNum)
+	preview.previews = append(preview.previews, line...)
 }
