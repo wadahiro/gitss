@@ -49,7 +49,7 @@ export interface Source {
 
 export interface FileMetadata {
     project: string;
-    repo: string;
+    repository: string;
     refs: string;
     path: string;
     ext: string;
