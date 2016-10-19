@@ -1,0 +1,73 @@
+box: golang
+build:
+  steps:
+    - script:
+       name: apt-get
+       code: |
+          sudo apt-get update
+          sudo apt-get -y install wget xz-utils
+    - script:
+       name: download nodejs
+       code: |
+          wget https://nodejs.org/dist/v6.9.0/node-v6.9.0-linux-x64.tar.xz
+    - script:
+       name: install nodejs
+       code: |
+          tar -C /tmp -Jxf node-v6.9.0-linux-x64.tar.xz
+    - script:
+       name: setup nodejs environment
+       code: |
+          export PATH=/tmp/node-v6.9.0-linux-x64/bin:$PATH
+    - script:
+       name: install dependencies
+       code: |
+          node --version
+          sudo npm config set registry http://registry.npmjs.org/
+          sudo npm install -g typings yarn
+          sudo typings install
+          sudo yarn install
+    - setup-go-workspace
+    - script:
+        name: git version
+        code: |
+          git version
+    - script:
+        name: go get
+        code: |
+          go version
+          go get -u github.com/mattn/gom
+    - script:
+        name: gom install
+        code: |
+          gom install
+    - script:
+        name: build & archive
+        code: |
+          npm run build
+    - script:
+        name: move to output
+        code: |
+          export RELEASE_TAG=$(node -pe 'require("./package.json").version')
+          echo "${RELEASE_TAG}" > $WERCKER_OUTPUT_DIR/.release_tag
+          mv dist/gitss-${RELEASE_TAG}-* $WERCKER_OUTPUT_DIR/
+deploy:
+  steps:
+    - script:
+       name: apt-get
+       code: |
+          sudo apt-get update
+          sudo apt-get -y install file
+    - script:
+        name: restore release tag
+        code: |
+          export RELEASE_TAG=$(cat .release_tag)
+          ls -al .
+    - wercker/github-create-release:
+        token: $GITHUB_TOKEN
+        tag: v${RELEASE_TAG}
+    - wercker/github-upload-asset:
+        token: $GITHUB_TOKEN
+        file: gitss-${RELEASE_TAG}-linux-amd64.tar.gz
+    - wercker/github-upload-asset:
+        token: $GITHUB_TOKEN
+        file: gitss-${RELEASE_TAG}-windows-amd64.tar.gz
