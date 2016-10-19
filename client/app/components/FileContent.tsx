@@ -54,7 +54,7 @@ const getRawCode = function (reindent) {
 export class FileContent extends React.Component<Props, State>{
 
     highlight(offset: number, highlightNums: number[], content: string, ext: string) {
-        if (window['EnlighterJS']) {
+        if (typeof window !== 'undefined' && window['EnlighterJS']) {
 
             // hack
             if (!window['EnlighterJS']._hacked) {

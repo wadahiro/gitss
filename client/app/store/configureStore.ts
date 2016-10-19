@@ -1,9 +1,19 @@
 // Use DefinePlugin (Webpack) or loose-envify (Browserify)
 // together with Uglify to strip the dev branch in prod build.
-let configureStore;
+let cs;
 if (process.env.NODE_ENV === 'production') {
-    configureStore = require('./configureStore.prod').default;
+    cs = require('./configureStore.prod').default;
 } else {
-    configureStore = require('./configureStore.dev').default;
+    cs = require('./configureStore.dev').default;
 }
-export default configureStore;
+export let configureStore = cs;
+
+export let store = null;
+export function getStore() { return store; }
+export function setAsCurrentStore(s) {
+    store = s;
+    if (process.env.NODE_ENV !== 'production'
+        && typeof window !== 'undefined') {
+        window['store'] = store;
+    }
+}

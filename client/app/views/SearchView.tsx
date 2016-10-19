@@ -18,10 +18,10 @@ class SearchView extends React.Component<Props, void> {
     render() {
         const { result } = this.props;
         return (
-            <Grid>
+            <div>
                 <Row>
                     <Col xs={12}>
-                        <h2>We’ve found {result.size} code results {result.time > 0 ? `(${result.time})` : ''}</h2>
+                        <h4>We’ve found {result.size} code results {result.time > 0 ? `(${Math.round(result.time * 1000) / 1000} seconds)` : ''}</h4>
                     </Col>
                 </Row>
                 <Divider/>
@@ -34,7 +34,7 @@ class SearchView extends React.Component<Props, void> {
                         </Row>
                     );
                 })}
-            </Grid>
+            </div>
         );
     }
 }

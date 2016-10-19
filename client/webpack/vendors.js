@@ -12,7 +12,7 @@ require('redux-undo');
 require('whatwg-fetch');
 require('babel-polyfill');
 
-require('classnames');
+// require('classnames');
 require('flexboxgrid');
 require('react-flexbox-grid');
 

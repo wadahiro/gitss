@@ -1,28 +1,33 @@
 import * as React from 'react';
 
-const style = require('./style.css');
-const F = require('react-flexbox-grid');
+// const style = require('./style.css');
+// const F = require('reflexbox');
+
+const style = {
+    grid: "grid",
+    row: "row"
+}
 
 export function Grid(props) {
     return (
-        <F.Grid className={style.grid} {...props}>
+        <div className='container' {...props}>
             {props.children}
-        </F.Grid>
+        </div>
     );
 }
 
 export function Row(props) {
     return (
-        <F.Row className={style.row} {...props}>
+        <div className='row' {...props}>
             {props.children}
-        </F.Row>
+        </div>
     );
 }
 
 export function Col(props) {
     return (
-        <F.Col {...props}>
+        <div className={`col-${props.xs}`}>
             {props.children}
-        </F.Col>
+        </div>
     );
 }

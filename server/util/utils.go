@@ -83,3 +83,9 @@ func appendPreview(preview *TextPreview, hitLinuNum int, line ...string) {
 	preview.Hits = append(preview.Hits, hitLinuNum)
 	preview.previews = append(preview.previews, line...)
 }
+
+func Must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}

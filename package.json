@@ -11,6 +11,7 @@
     "style": "node-sass client/css/main.scss assets/css/style.css",
     "bindata": "go-bindata -debug -o ./server/bindata.go assets/... ./server/templates/...",
     "build:dll": "webpack --config=./client/webpack/webpack.dll.js",
+    "build": "webpack --config=./client/webpack/webpack.prod.config.js",
     "dev": "webpack -w --config ./client/webpack/webpack.config.js",
     "start": "node-dev ./client/webpack/webpack.server.js"
   },
@@ -35,14 +36,12 @@
     "webpack-dev-server": "^2.1.0-beta.7"
   },
   "dependencies": {
-    "classnames": "^2.2.5",
-    "flexboxgrid": "^6.3.1",
     "history": "^4.3.0",
     "material-ui": "^0.15.4",
     "moment": "^2.15.1",
     "react": "^15.3.2",
     "react-dom": "^15.3.2",
-    "react-flexbox-grid": "^0.10.2",
+    "react-helmet": "^3.1.0",
     "react-redux": "^4.4.5",
     "react-router": "^2.8.1",
     "react-tap-event-plugin": "^1.0.0",

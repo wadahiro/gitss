@@ -6,6 +6,7 @@
     "node": "registry:dt/node#6.0.0+20160709114037",
     "react": "registry:dt/react#0.14.0+20160927082313",
     "react-dom": "registry:dt/react-dom#0.14.0+20160412154040",
+    "react-helmet": "registry:dt/react-helmet#0.0.0+20160816111147",
     "react-mdl": "registry:dt/react-mdl#0.0.0+20160830142027",
     "react-redux": "registry:dt/react-redux#4.4.0+20160703120921",
     "react-router": "registry:dt/react-router#2.0.0+20160928130202",

@@ -69,10 +69,6 @@ module.exports = {
     extensions: ['.tsx', '.ts', '.js', '.jsx']
   },
   plugins: [
-    new webpack.DllReferencePlugin({
-      context: path.join(__dirname, '../app'),
-      manifest: require('../.dll/vendor-manifest.json')
-    })
   ],
   cache: true
 }

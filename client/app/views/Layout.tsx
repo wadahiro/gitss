@@ -26,7 +26,7 @@ class Layout extends React.Component<Props, void> {
         return (
             <div>
                 <NavBar onKeyDown={this.handleKeyDown} />
-                <Grid>
+                <Grid style={{marginTop: 40}}>
                     <Row>
                         <Col xs={12}>
                             {this.props.children}

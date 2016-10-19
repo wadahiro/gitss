@@ -10,7 +10,7 @@ const enhancer = compose(
     // applyMiddleware(sagaMiddleware),
     // Required! Enable Redux DevTools with the monitors you chose
     // DevTools.instrument()
-    window['devToolsExtension'] ? window['devToolsExtension']() : f => f
+    typeof window !== 'undefined' && window['devToolsExtension'] ? window['devToolsExtension']() : f => f
 );
 
 export default function configureStore(initialState) {

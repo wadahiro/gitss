@@ -58,13 +58,13 @@ func initRouter(indexer indexer.Indexer, port string, debugMode bool, dataDir st
 	r.GET(apiPrefix+"search", controller.SearchIndex)
 
 	// react server-side rendering
-	react := NewReact(
-		"assets/js/bundle.js",
-		debugMode,
-		r,
-	)
-	r.GET("/", react.Handle)
-	r.GET("/issues", react.Handle)
+	// react := NewReact(
+	// 	"assets/js/bundle.js",
+	// 	debugMode,
+	// 	r,
+	// )
+	// r.GET("/", react.Handle)
+	// r.GET("/issues", react.Handle)
 
 	r.Use(static.Serve("/", BinaryFileSystem("assets")))
 

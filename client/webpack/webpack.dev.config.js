@@ -7,7 +7,11 @@ config.profile = false
 config.devtool = 'inline-source-map'
 
 config.plugins = config.plugins.concat([
-  new webpack.NoErrorsPlugin()
+  new webpack.NoErrorsPlugin(),
+  new webpack.DllReferencePlugin({
+    context: path.join(__dirname, '../app'),
+    manifest: require('../.dll/vendor-manifest.json')
+  })
 ])
 
 module.exports = config

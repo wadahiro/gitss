@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-errors/errors"
 	"github.com/nu7hatch/gouuid"
 	"gopkg.in/olebedev/go-duktape-fetch.v2"
 	"gopkg.in/olebedev/go-duktape.v2"
+	"github.com/wadahiro/GitS/server/util"
 )
 
 // React struct is contains duktape
@@ -27,7 +30,7 @@ type React struct {
 // NewReact initialized React struct
 func NewReact(filePath string, debug bool, server http.Handler) *React {
 	r := &React{
-		debug: debug,
+		debug: false,
 		path:  filePath,
 	}
 	if !debug {
@@ -55,10 +58,13 @@ func (r *React) Handle(c *gin.Context) {
 	UUID := uuidContainer.(*uuid.UUID)
 	defer func() {
 		if r := recover(); r != nil {
-			// fmt.Println(err.(*errors.Error).ErrorStack())
+			stack := errors.Wrap(r, 2).ErrorStack()
+			msg := fmt.Sprintf("%#v\n%s\n", r, stack)
+			log.Println(msg)
+
 			c.HTML(http.StatusInternalServerError, "react.html", gin.H{
 				"UUID":  UUID.String(),
-				"Error": r,
+				"Error": msg,
 			})
 		}
 	}()
@@ -166,14 +172,14 @@ func newReactVM(filePath string, engine http.Handler) *ReactVM {
 	}
 
 	err := vm.PevalString(`var console = {log:print,warn:print,error:print,info:print}`)
-	Must(err)
+	util.Must(err)
 
 	err = vm.PevalString(`var process = {env: {NODE_ENV: 'production'}}`)
-	Must(err)
+	util.Must(err)
 
 	fetch.PushGlobal(vm.Context, engine)
 	app, err := Asset(filePath)
-	Must(err)
+	util.Must(err)
 
 	// Reduce CGO calls
 	vm.PushGlobalGoFunction("__goServerCallback__", func(ctx *duktape.Context) int {
@@ -190,9 +196,12 @@ func newReactVM(filePath string, engine http.Handler) *ReactVM {
 	fmt.Printf("%s loaded\n", filePath)
 	if err := vm.PevalString(string(app)); err != nil {
 		derr := err.(*duktape.Error)
-        // Must(err)
-        fmt.Println("Eval error", derr.Stack)
-		panic(derr.Stack)
+		// Must(err)
+
+		fmt.Println("Eval error", derr.Error, derr.FileName, derr.LineNumber)
+		fmt.Println("Stack", derr.Stack)
+
+		util.Must(err)
 	}
 	vm.PopN(vm.GetTop())
 	return vm
@@ -210,13 +219,16 @@ func (r *ReactVM) Handle(req map[string]interface{}) <-chan Resp {
 	// fmt.Println("VM Handle", req)
 
 	b, err := json.Marshal(req)
-	Must(err)
+	util.Must(err)
 	// Keep it sync with `src/app/client/index.js:4`
 	err2 := r.PevalString(`main(` + string(b) + `, __goServerCallback__)`)
-    if err2 != nil {
-        fmt.Println(err2)
-    }
-	Must(err2)
+	if err2 != nil {
+
+		fmt.Println(err2)
+
+	}
+
+	util.Must(err2)
 	return r.ch
 }
 

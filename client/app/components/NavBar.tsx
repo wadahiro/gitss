@@ -10,18 +10,26 @@ import { List, ListItem } from 'material-ui/List';
 import { Grid, Row, Col } from '../components/Grid';
 
 export function NavBar(props) {
-    const styles = {
+    const navStyle = {
         position: "fixed",
-        top: 0
+        backgroundColor: 'rgb(63, 81, 181)',
+        width: '100%',
+        zIndex: 1100,
+        paddingLeft: 24,
+        paddingRight: 24,
+        top: 0,
+        marginBottom: 80,
+        boxSizing: 'border-box'
     };
 
     const style = {
         height: 50,
         width: 500,
-        margin: 20,
-        padding: 0,
-        textAlign: 'center',
-        display: 'inline-block',
+        marginTop: 10,
+        marginBottom: 10,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        padding: 0
     };
     const listStyle = {
         height: '100%',
@@ -36,40 +44,20 @@ export function NavBar(props) {
         // padding: 0,
     };
     return (
-        <div style={{ marginBottom: 40 }}>
-            <AppBar
-                style={styles}
-                iconElementLeft={
-                    <Paper style={style} zDepth={4}>
-                        <List style={listStyle}>
-                            <ListItem style={listItemStyle} primaryText={
-                                <TextField
-                                    type='search'
-                                    hintText='Search'
-                                    underlineShow={false}
-                                    fullWidth={true}
-                                    onKeyDown={props.onKeyDown} />
-                            } disabled leftIcon={<SearchIcon />}>
-                            </ListItem>
-                        </List>
-                    </Paper>
-                } />
-
-            <Toolbar>
-                <ToolbarGroup firstChild={true}>
-                    <Paper style={style} zDepth={1} >
+        <div style={navStyle}>
+            <Paper style={style} zDepth={4}>
+                <List style={listStyle}>
+                    <ListItem style={listItemStyle} primaryText={
                         <TextField
                             type='search'
-                            floatingLabelText='Search string...'
+                            hintText='Search'
+                            underlineShow={false}
                             fullWidth={true}
-                            />
-                    </Paper>
-                </ToolbarGroup>
-                <ToolbarGroup>
-                    <ToolbarTitle text="Options" />
-
-                </ToolbarGroup>
-            </Toolbar>
-        </div >
+                            onKeyDown={props.onKeyDown} />
+                    } disabled leftIcon={<SearchIcon />}>
+                    </ListItem>
+                </List>
+            </Paper>
+        </div>
     );
 }
