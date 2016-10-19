@@ -14,7 +14,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"gopkg.in/olebedev/go-duktape-fetch.v2"
 	"gopkg.in/olebedev/go-duktape.v2"
-	"github.com/wadahiro/GitS/server/util"
+	"github.com/wadahiro/gits/server/util"
 )
 
 // React struct is contains duktape

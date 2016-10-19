@@ -17,8 +17,8 @@ import (
 )
 
 type GitImporter struct {
-	dataDir string
-	indexer indexer.Indexer
+	dataDir   string
+	indexer   indexer.Indexer
 	debugMode bool
 }
 
@@ -26,12 +26,12 @@ func NewGitImporter(dataDir string, indexer indexer.Indexer, debugMode bool) *Gi
 	return &GitImporter{dataDir: dataDir, indexer: indexer, debugMode: debugMode}
 }
 
-func (g *GitImporter) Run(projectName string, url string) {
-	fmt.Printf("Clone from %s %s\n", projectName, url)
+func (g *GitImporter) Run(organization string, projectName string, url string) {
+	fmt.Printf("Clone from %s %s %s\n", organization, projectName, url)
 
 	splitedUrl := strings.Split(url, "/")
 	repoName := splitedUrl[len(splitedUrl)-1]
-	repoPath := fmt.Sprintf("%s/%s/%s", g.dataDir, projectName, repoName)
+	repoPath := fmt.Sprintf("%s/%s/%s/%s", g.dataDir, organization, projectName, repoName)
 
 	// Drop ".git" from repoName
 	splitedRepoNames := strings.Split(repoName, ".git")
@@ -49,7 +49,7 @@ func (g *GitImporter) Run(projectName string, url string) {
 	FetchAll(repoPath)
 	// git.Pull(repoPath, git.PullRemoteOptions{All: true})
 
-	repo, err := repo.NewGitRepo(projectName, repoName, repoPath)
+	repo, err := repo.NewGitRepo(organization, projectName, repoName, repoPath)
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +78,7 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	tree.Files().ForEach(func(f *git.File) error {
 		fmt.Printf("100644 blob %s %s %d\n", f.Hash, f.Name, f.Size)
 
-		if f.Size > 1024 * 1000 * 1000 {
+		if f.Size > 1024*1000*1000 {
 			return nil
 		}
 
@@ -95,14 +95,14 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 		buf.ReadFrom(reader)
 		content := buf.String()
 
-		g.CreateFileIndex(repo.Project, repo.Repo, branchName, f.Name, blobHash, content)
+		g.CreateFileIndex(repo.Organization, repo.Project, repo.Repository, branchName, f.Name, blobHash, content)
 
 		return nil
 	})
 }
 
-func (g *GitImporter) CreateFileIndex(project string, repo string, branch string, filePath string, blob string, content string) {
-	g.indexer.UpsertFileIndex(project, repo, branch, filePath, blob, content)
+func (g *GitImporter) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) {
+	g.indexer.UpsertFileIndex(organization, project, repo, branch, filePath, blob, content)
 }
 
 func FetchAll(repoPath string) error {

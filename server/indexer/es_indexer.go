@@ -1,7 +1,7 @@
 package indexer
 
 import (
-	"bytes"
+	// "bytes"
 	"encoding/json"
 	"regexp"
 	"strconv"
@@ -21,22 +21,17 @@ import (
 type ESIndexer struct {
 	client *elastic.Client
 	reader *repo.GitRepoReader
+	debug bool
 }
 
-type FileIndex struct {
-	Blob     string     `json:"blob"`
-	Metadata []Metadata `json:"metadata"`
-	Content  string     `json:"content"`
-}
+// var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
 
-var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
-
-func NewESIndexer(reader *repo.GitRepoReader) Indexer {
+func NewESIndexer(reader *repo.GitRepoReader, debugMode bool) Indexer {
 	client, err := elastic.NewClient(elastic.SetURL())
 	if err != nil {
 		panic(err)
 	}
-	i := &ESIndexer{client: client, reader: reader}
+	i := &ESIndexer{client: client, reader: reader, debug: debugMode}
 	i.Init()
 	return i
 }
@@ -44,7 +39,7 @@ func NewESIndexer(reader *repo.GitRepoReader) Indexer {
 const PRE_TAG = "\u0001"
 const POST_TAG = "\u0001"
 
-var HIT_TAG = regexp.MustCompile(`\x{0001}(.*)\x{0001}`)
+var ES_HIT_TAG = regexp.MustCompile(`\x{0001}(.*)\x{0001}`)
 
 var CRLF_PATTERN = regexp.MustCompile(`\r?\n|\r`)
 
@@ -103,6 +98,19 @@ func (esi *ESIndexer) Init() {
 				metadata: {
 					type: "nested",
 					properties: {
+						organization: {
+							type: "multi_field",
+							fields: {
+								organization: {
+									type: "string",
+									index: "analyzed"
+								},
+								full: {
+									type: "string",
+									index: "not_analyzed"
+								}
+							}
+						},
 						project: {
 							type: "multi_field",
 							fields: {
@@ -152,7 +160,7 @@ func (esi *ESIndexer) Init() {
 						}
 					}
 				},
-				contents: {
+				content: {
 					type: "string",
 					index_options: "offsets",
 					analyzer: "kuromoji_analyzer"
@@ -168,11 +176,11 @@ func (esi *ESIndexer) Init() {
 	}
 }
 
-func (esi *ESIndexer) CreateFileIndex(project string, repo string, branch string, filePath string, blob string, content string) error {
+func (esi *ESIndexer) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
 
 	ext := path.Ext(filePath)
 
-	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: content}
+	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: content}
 
 	_, err := esi.client.Index().
 		Index("gosource").
@@ -188,7 +196,7 @@ func (esi *ESIndexer) CreateFileIndex(project string, repo string, branch string
 	return nil
 }
 
-func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string, filePath string, blob string, content string) error {
+func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
 
 	ext := path.Ext(filePath)
 
@@ -203,16 +211,8 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 		if err := json.Unmarshal(*get.Source, &fileIndex); err != nil {
 			return err
 		}
-		f := func(x Metadata, i int) bool {
-			return x.Project == project &&
-				x.Repo == repo &&
-				x.Refs == branch &&
-				x.Path == filePath
-		}
-		found := find(f, fileIndex.Metadata)
-		if found == nil {
-			fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext})
-		}
+
+		mergeFileIndex(&fileIndex, organization, project, repo, branch, filePath, ext)
 
 		_, err := esi.client.Update().
 			Index("gosource").
@@ -233,7 +233,7 @@ func (esi *ESIndexer) UpsertFileIndex(project string, repo string, branch string
 			newLines = append(newLines, "["+strconv.Itoa(i+1)+"] "+l)
 		}
 
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Project: project, Repo: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
+		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
 
 		_, err := esi.client.Index().
 			Index("gosource").
@@ -261,6 +261,7 @@ func (esi *ESIndexer) SearchQuery(query string) SearchResult {
 	result.Time = (end.Sub(start)).Seconds()
 	return result
 }
+
 func (esi *ESIndexer) search(query string) SearchResult {
 	// termQuery := elastic.NewTermsQuery("content", strings.Split(query, " "))
 	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
@@ -291,7 +292,7 @@ func (esi *ESIndexer) search(query string) SearchResult {
 			json.Unmarshal(*hit.Source, &s)
 
 			// find highlighted words
-			hitWordsSet = mergeSet(hitWordsSet, getHitWords(hit.Highlight["content"]))
+			hitWordsSet = mergeSet(hitWordsSet, getHitWords(ES_HIT_TAG, hit.Highlight["content"]))
 
 			log.Println("hitWords", hitWordsSet)
 
@@ -330,58 +331,3 @@ func (esi *ESIndexer) search(query string) SearchResult {
 	return SearchResult{Hits: list, Size: searchResult.Hits.TotalHits}
 }
 
-func find(f func(s Metadata, i int) bool, s []Metadata) *Metadata {
-	for index, x := range s {
-		if f(x, index) == true {
-			return &x
-		}
-	}
-	return nil
-}
-
-func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
-	ans := make([]Metadata, 0)
-	for index, x := range s {
-		if f(x, index) == true {
-			ans = append(ans, x)
-		}
-	}
-	return ans
-}
-
-func getGitRepo(reader *repo.GitRepoReader, s *Source) *repo.GitRepo {
-	repo := reader.GetGitRepo(s.Metadata[0].Project, s.Metadata[0].Repo)
-	return repo
-}
-
-func getFileContent(repo *repo.GitRepo, s *Source) string {
-	blob, _ := repo.GetBlob(s.Blob)
-
-	r, _ := blob.Reader()
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(r)
-	text := buf.String()
-
-	return text
-}
-
-func getHitWords(contents []string) map[string]struct{} {
-	hitWordsSet := make(map[string]struct{})
-
-	for _, content := range contents {
-		groups := HIT_TAG.FindAllStringSubmatch(content, -1)
-		// log.Println("hit", len(groups))
-		for _, group := range groups {
-			for i, g := range group {
-				if i == 0 {
-					continue
-				}
-				// log.Println("hit2", g)
-				hitWordsSet[g] = struct{}{}
-			}
-		}
-	}
-
-	return hitWordsSet
-}

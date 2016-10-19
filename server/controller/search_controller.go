@@ -31,9 +31,9 @@ func getIndexer(c *gin.Context) indexer.Indexer {
 	return indexer
 }
 
-func getDataDir(c *gin.Context) string {
-	r, _ := c.Get("dataDir")
-	dataDir := r.(string)
+func getGitDataDir(c *gin.Context) string {
+	r, _ := c.Get("gitDataDir")
+	gitDataDir := r.(string)
 
-	return dataDir
+	return gitDataDir
 }

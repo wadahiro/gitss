@@ -8,11 +8,12 @@ import (
 	// "path/filepath"
 	"fmt"
 	// "strings"
-	"github.com/wadahiro/GitS/server/util"
+	"github.com/wadahiro/gits/server/util"
 
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v4"
 	core "gopkg.in/src-d/go-git.v4/core"
+	"log"
 )
 
 type GitRepoReader struct {
@@ -25,34 +26,36 @@ func NewGitRepoReader(dataDir string, debugMode bool) *GitRepoReader {
 	return reader
 }
 
-func (r *GitRepoReader) GetGitRepo(project string, repoName string) *GitRepo {
+func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) *GitRepo {
 
-	repoPath := fmt.Sprintf("%s/%s/%s.git", r.dataDir, project, repoName)
+	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", r.dataDir, organization, project, repoName)
 
-	repo, err := NewGitRepo(project, project, repoPath)
+	repo, err := NewGitRepo(organization, project, repoName, repoPath)
 	if err != nil {
+		log.Println(err, repoPath)
 		panic(err)
 	}
 	return repo
 }
 
 type GitRepo struct {
-	Project  string
-	Repo     string
-	Path     string
-	gitmRepo *gitm.Repository
-	repo     *git.Repository
+	Organization string
+	Project      string
+	Repository         string
+	Path         string
+	gitmRepo     *gitm.Repository
+	repo         *git.Repository
 }
 
-func NewGitRepo(projectName string, repoName string, repoPath string) (*GitRepo, error) {
+func NewGitRepo(organization string, projectName string, repoName string, repoPath string) (*GitRepo, error) {
 	gitmRepo, err := gitm.OpenRepository(repoPath)
 	if err != nil {
 		return nil, err
 	}
 
-	repo, _ := git.NewFilesystemRepository(repoPath)
+	r, _ := git.NewFilesystemRepository(repoPath)
 
-	return &GitRepo{Project: projectName, Repo: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: repo}, nil
+	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: r}, nil
 }
 
 func (r *GitRepo) GetBranches() ([]string, error) {
