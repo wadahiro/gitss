@@ -11,7 +11,7 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/document"
-	"github.com/wadahiro/gits/server/repo"
+	"github.com/wadahiro/gitss/server/repo"
 )
 
 var MAPPING = []byte(`{

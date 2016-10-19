@@ -11,7 +11,7 @@ import (
 	"log"
 	"path"
 	// "strings"
-	"github.com/wadahiro/gits/server/repo"
+	"github.com/wadahiro/gitss/server/repo"
 
 	// "fmt"
 

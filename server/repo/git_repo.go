@@ -8,7 +8,7 @@ import (
 	// "path/filepath"
 	"fmt"
 	// "strings"
-	"github.com/wadahiro/gits/server/util"
+	"github.com/wadahiro/gitss/server/util"
 
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v4"

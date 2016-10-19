@@ -8,9 +8,9 @@ import (
 
 	"github.com/codegangsta/cli"
 
-	"github.com/wadahiro/gits/server/importer"
-	"github.com/wadahiro/gits/server/indexer"
-	"github.com/wadahiro/gits/server/repo"
+	"github.com/wadahiro/gitss/server/importer"
+	"github.com/wadahiro/gitss/server/indexer"
+	"github.com/wadahiro/gitss/server/repo"
 )
 
 var CommitHash = "WORKSPACE" // inject by LDFLAGS build option

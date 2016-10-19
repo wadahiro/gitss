@@ -9,8 +9,8 @@ import (
 	// "os"
 	// "path/filepath"
 
-	"github.com/wadahiro/gits/server/indexer"
-	"github.com/wadahiro/gits/server/repo"
+	"github.com/wadahiro/gitss/server/indexer"
+	"github.com/wadahiro/gitss/server/repo"
 
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v4"

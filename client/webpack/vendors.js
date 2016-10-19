@@ -12,10 +12,6 @@ require('redux-undo');
 require('whatwg-fetch');
 require('babel-polyfill');
 
-// require('classnames');
-require('flexboxgrid');
-require('react-flexbox-grid');
-
 require('react-tap-event-plugin');
 require('material-ui/styles/MuiThemeProvider');
 require('material-ui/styles/getMuiTheme');

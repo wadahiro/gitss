@@ -9,7 +9,7 @@ import (
 	// "strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/wadahiro/gits/server/indexer"
+	"github.com/wadahiro/gitss/server/indexer"
 	// "gopkg.in/src-d/go-git.v4"
 	// core "gopkg.in/src-d/go-git.v4/core"
 )

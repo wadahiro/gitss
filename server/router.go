@@ -12,8 +12,8 @@ import (
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/nu7hatch/gouuid"
-	"github.com/wadahiro/gits/server/controller"
-	"github.com/wadahiro/gits/server/indexer"
+	"github.com/wadahiro/gitss/server/controller"
+	"github.com/wadahiro/gitss/server/indexer"
 )
 
 func initRouter(indexer indexer.Indexer, port string, debugMode bool, gitDataDir string) {

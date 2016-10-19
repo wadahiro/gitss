@@ -5,8 +5,8 @@ import (
 	"regexp"
 	// "log"
 
-	"github.com/wadahiro/gits/server/repo"
-	"github.com/wadahiro/gits/server/util"
+	"github.com/wadahiro/gitss/server/repo"
+	"github.com/wadahiro/gitss/server/util"
 )
 
 type Indexer interface {
