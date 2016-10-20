@@ -1,30 +1,33 @@
 package importer
 
 import (
-	"bytes"
-	"log"
 	"fmt"
+	"log"
 	"strings"
+	"sync"
 	// "io"
 	// "io/ioutil"
 	// "os"
-	// "path/filepath"
+	"path"
 
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
+	"github.com/wadahiro/gitss/server/util"
+
+	"time"
 
 	gitm "github.com/gogits/git-module"
-	"time"
 )
 
 type GitImporter struct {
-	dataDir string
-	indexer indexer.Indexer
-	debug   bool
+	dataDir   string
+	indexer   indexer.Indexer
+	sizeLimit int64
+	debug     bool
 }
 
-func NewGitImporter(dataDir string, indexer indexer.Indexer, debugMode bool) *GitImporter {
-	return &GitImporter{dataDir: dataDir, indexer: indexer, debug: debugMode}
+func NewGitImporter(dataDir string, indexer indexer.Indexer, sizeLimit int64, debugMode bool) *GitImporter {
+	return &GitImporter{dataDir: dataDir, indexer: indexer, sizeLimit: sizeLimit, debug: debugMode}
 }
 
 func (g *GitImporter) Run(organization string, projectName string, url string) {
@@ -58,7 +61,6 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 	branches, _ := repo.GetBranches()
 
 	for _, branch := range branches {
-		log.Println(branch)
 		g.CreateBranchIndex(repo, branch)
 	}
 }
@@ -66,26 +68,27 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	commitId, _ := repo.GetBranchCommitID(branchName)
 
-	log.Printf("Indexing start: @%s %s/%s (%s) %s\n", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
-	
+	tag := fmt.Sprintf("@%s %s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
+	fmt.Printf("Indexing start: %s\n", tag)
+
 	start := time.Now()
 
 	// containBranches, _ := ContainsBranch(repo.Path, commitId)
 
 	// if g.debug {
-	// 	log.Println("ContainsBranches", containBranches)
+	// 	fmt.Println("ContainsBranches", containBranches)
 	// }
 
 	// commit, err := repo.GetCommit(commitId)
 
 	commit, _ := repo.GetCommit(commitId)
 	tree := commit.Tree()
-
 	iter := tree.Files()
+	defer iter.Close()
 
-	defer func() {
-		iter.Close()
-	}()
+	tasks := util.GenWorkers(4)
+	wg := &sync.WaitGroup{}
+	batch := []indexer.FileIndex{}
 
 	for true {
 		f, err := iter.Next()
@@ -94,32 +97,76 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 		}
 
 		if g.debug {
-			log.Printf("100644 blob %s %s %d\n", f.Hash, f.Name, f.Size)
+			// fmt.Printf("100644 blob %s %s %d\n", f.Hash, f.Name, f.Size)
 		}
 
-		if f.Size > 1024*1024 { // 1MB
+		if f.Size > g.sizeLimit {
+			if g.debug {
+				fmt.Printf("Skipped indexing for size limit. %s %d > %d", f.Name, f.Size, g.sizeLimit)
+			}
 			continue
 		}
 
 		blobHash := f.Hash.String()
 
-		blob, err := repo.Blob(f.Hash)
+		// s := time.Now()
+		contentType, err := repo.DetectBlobContentType(blobHash)
 		if err != nil {
+			fmt.Printf("Not found blob. Removed? %s %s - %s\n", tag, blobHash, f.Name)
 			continue
 		}
+		// e := time.Now()
+		// t := (e.Sub(s)).Seconds()
+		// fmt.Println("Detect time", t)
 
-		reader, _ := blob.Reader()
+		if g.debug {
+			// fmt.Println("Detected ContentType:", contentType)
+		}
 
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(reader)
-		content := buf.String()
+		// @TODO Extract text from binary in the future?
+		var content []byte
+		if strings.HasPrefix(contentType, "text/") {
+			content, err = repo.GetBlobContent(blobHash)
+			if err != nil {
+				fmt.Printf("Not found blob. Removed? %s %s - %s\n", tag, blobHash, f.Name)
+				continue
+			}
+		} else {
+			// fmt.Println("Drop content", contentType, f.Name)
+		}
+		textContent := string(content)
 
-		g.CreateFileIndex(repo.Organization, repo.Project, repo.Repository, branchName, f.Name, blobHash, content)
+		// fmt.Println(textContent)
+
+		fileIndex := indexer.FileIndex{Blob: blobHash, Content: textContent, Metadata: []indexer.Metadata{indexer.Metadata{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Refs: branchName, Path: f.Name, Ext: path.Ext(f.Name)}}}
+
+		batch = append(batch, fileIndex)
+
+		// g.CreateFileIndex(repo.Organization, repo.Project, repo.Repository, branchName, f.Name, blobHash, content)
+		batchSize := 512
+		if len(batch) == batchSize {
+			wg.Add(1)
+			batchCopy := make([]indexer.FileIndex, batchSize)
+			copy(batchCopy, batch)
+			tasks <- func() {
+				defer wg.Done()
+				fmt.Printf("Indexed %d files start\n", batchSize)
+				g.indexer.BatchFileIndex(&batchCopy)
+				batch = nil
+				fmt.Printf("Indexed %d files end\n", batchSize)
+			}
+		}
 	}
-	
+	if len(batch) > 0 {
+		fmt.Printf("Indexed %d files start\n", len(batch))
+		g.indexer.BatchFileIndex(&batch)
+		fmt.Printf("Indexed %d files end\n", len(batch))
+	}
+	wg.Wait()
+
 	end := time.Now()
 	time := (end.Sub(start)).Seconds()
-	log.Printf("Indexing Complete! [%d seconds]\n", time)
+	fmt.Printf("Indexing Complete! [%f seconds]\n", time)
 }
 
 func (g *GitImporter) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) {

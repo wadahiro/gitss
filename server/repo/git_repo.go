@@ -7,14 +7,19 @@ import (
 	// "os"
 	// "path/filepath"
 	"fmt"
+
 	"gopkg.in/src-d/go-git.v3/utils/fs"
 	// "strings"
 	"github.com/wadahiro/gitss/server/util"
 
+	"bytes"
+	"io"
+	"log"
+	"net/http"
+
 	gitm "github.com/gogits/git-module"
 	"gopkg.in/src-d/go-git.v3"
 	core "gopkg.in/src-d/go-git.v3/core"
-	"log"
 )
 
 type GitRepoReader struct {
@@ -42,7 +47,7 @@ func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName
 type GitRepo struct {
 	Organization string
 	Project      string
-	Repository         string
+	Repository   string
 	Path         string
 	gitmRepo     *gitm.Repository
 	repo         *git.Repository
@@ -80,9 +85,47 @@ func (r *GitRepo) Blob(hash core.Hash) (*git.Blob, error) {
 	return r.repo.Blob(hash)
 }
 
+func (r *GitRepo) GetBlobContent(blobId string) ([]byte, error) {
+	blob, err := r.GetBlob(blobId)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, _ := blob.Reader()
+	defer reader.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(reader)
+	return buf.Bytes(), nil
+}
+
+func (r *GitRepo) DetectBlobContentType(blobId string) (string, error) {
+	blob, err := r.GetBlob(blobId)
+	if err != nil {
+		return "", err
+	}
+
+	reader, _ := blob.Reader()
+
+	defer reader.Close()
+
+	// Only the first 512 bytes are used to sniff the content type.
+	buffer := make([]byte, 512)
+	n, err := reader.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+
+	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
+	contentType := http.DetectContentType(buffer[:n])
+
+	return contentType, nil
+}
+
 func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
 	blob, _ := r.GetBlob(blobId)
 	reader, _ := blob.Reader()
+	defer reader.Close()
 
 	previews := util.FilterTextPreview(reader, filter, before, after)
 

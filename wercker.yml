@@ -1,4 +1,5 @@
 box: golang
+no-response-timeout: 15
 build:
   steps:
     - script:
@@ -19,7 +20,7 @@ build:
        code: |
           export PATH=/tmp/node-v6.9.0-linux-x64/bin:$PATH
     - script:
-       name: install dependencies
+       name: install nodejs dependencies
        code: |
           node --version
           sudo npm config set registry http://registry.npmjs.org/
@@ -37,13 +38,13 @@ build:
           go version
           go get -u github.com/mattn/gom
     - script:
-        name: build & archive
+        name: install golang dependencies
         code: |
           gom install
-          ls -al .
-          ls -al vendor/**/**/**
-          echo $GO15VENDOREXPERIMENT
-          echo $GOM_VENDOR_NAME
+          ls -al vendor
+    - script:
+        name: build & archive
+        code: |
           npm run build
     - script:
         name: move to output

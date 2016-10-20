@@ -38,6 +38,13 @@ func main() {
 				Usage:     "Import a Git repository",
 				ArgsUsage: "[project name] [git repository url]",
 				Action:    ImportGitRepository,
+				Flags: []cli.Flag{
+					cli.Int64Flag{
+						Name:  "sizeLimit",
+						Value: 1024 * 1024, //1MB
+						Usage: "Indexing limit file size",
+					},
+				},
 			},
 		}
 		app.Flags = []cli.Flag{
@@ -114,6 +121,8 @@ func ImportGitRepository(c *cli.Context) {
 		indexerType = c.GlobalString("indexer")
 	}
 
+	sizeLimit := c.Int64("sizeLimit")
+
 	if len(c.Args()) != 3 {
 		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
 	}
@@ -131,11 +140,12 @@ func ImportGitRepository(c *cli.Context) {
 	log.Println("ORGANIZATION_NAME: ", organization)
 	log.Println("PROJECT_NAME: ", projectName)
 	log.Println("GIT_REPOSITORY_URL: ", gitRepoUrl)
+	log.Println("SIZE_LIMIT: ", sizeLimit)
 	log.Println("--------------------------------------------------------")
 
 	reader := repo.NewGitRepoReader(gitDataDir, debugMode)
 	indexer := newIndexer(indexerType, reader, dataDir, debugMode)
-	importer := importer.NewGitImporter(gitDataDir, indexer, debugMode)
+	importer := importer.NewGitImporter(gitDataDir, indexer, sizeLimit, debugMode)
 	importer.Run(organization, projectName, gitRepoUrl)
 }
 

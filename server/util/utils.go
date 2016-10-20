@@ -93,3 +93,15 @@ func Must(e error) {
 		panic(e)
 	}
 }
+
+func GenWorkers(num int) chan<- func() {
+	tasks := make(chan func())
+	for i := 0; i < num; i++ {
+		go func() {
+			for f := range tasks {
+				f()
+			}
+		}()
+	}
+	return tasks
+}

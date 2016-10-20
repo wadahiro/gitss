@@ -198,6 +198,16 @@ func (b *BleveIndexer) CreateFileIndex(organization string, project string, repo
 	return nil
 }
 
+func (b *BleveIndexer) BatchFileIndex(fileIndex *[]FileIndex) error {
+	batch := b.client.NewBatch()
+	for i := range *fileIndex {
+		f := (*fileIndex)[i]
+		batch.Index(f.Blob, f)
+	}
+	b.client.Batch(batch)
+	return nil
+}
+
 func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo string, refs string, filePath string, blob string, content string) error {
 
 	ext := path.Ext(filePath)

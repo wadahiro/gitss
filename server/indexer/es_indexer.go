@@ -196,6 +196,10 @@ func (esi *ESIndexer) CreateFileIndex(organization string, project string, repo 
 	return nil
 }
 
+func (b *ESIndexer) BatchFileIndex(fileIndex *[]FileIndex) error {
+	return nil
+}
+
 func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
 
 	ext := path.Ext(filePath)

@@ -12,6 +12,7 @@ import (
 type Indexer interface {
 	CreateFileIndex(organization string, project string, repo string, branch string, fileName string, blob string, content string) error
 	UpsertFileIndex(organization string, project string, repo string, branch string, fileName string, blob string, content string) error
+	BatchFileIndex(fileIndex *[]FileIndex) error
 	SearchQuery(query string) SearchResult
 }
 
