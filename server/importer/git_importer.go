@@ -66,9 +66,7 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	commitId, _ := repo.GetBranchCommitID(branchName)
 
-	if g.debug {
-		log.Printf("Indexing start: @%s %s/%s (%s) %s\n", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
-	}
+	log.Printf("Indexing start: @%s %s/%s (%s) %s\n", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
 	
 	start := time.Now()
 
