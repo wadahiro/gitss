@@ -5,7 +5,8 @@ const { ActionCreators } = require('redux-undo');
 import WebApi from '../api/WebApi';
 
 export type Actions =
-    Search
+    Search |
+    SearchStart
     ;
 
 export interface Search extends Action {
@@ -14,10 +15,19 @@ export interface Search extends Action {
         result: any;
     }
 }
+
+export interface SearchStart extends Action {
+    type: 'SEARCH_START';
+}
+
 export function search(dispatch: Dispatch<Search>, query: string): void {
+    dispatch({
+        type: 'SEARCH_START'
+    });
+
     WebApi.get('search?q=' + query)
         .then(res => {
-            console.log(res);
+            // console.log(res);
             dispatch({
                 type: 'SEARCH',
                 payload: {
@@ -27,7 +37,7 @@ export function search(dispatch: Dispatch<Search>, query: string): void {
         })
         .catch(e => {
             console.warn(e);
-        })
+        });
 }
 
 export function undo() {

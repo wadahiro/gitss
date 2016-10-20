@@ -11,6 +11,7 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/document"
+	"github.com/blevesearch/bleve/mapping"
 	"github.com/wadahiro/gitss/server/repo"
 )
 
@@ -155,14 +156,14 @@ var BLEVE_HIT_TAG = regexp.MustCompile(`<mark>(.*)</mark>`)
 type BleveIndexer struct {
 	client bleve.Index
 	reader *repo.GitRepoReader
-	debug bool
+	debug  bool
 }
 
 func NewBleveIndexer(reader *repo.GitRepoReader, indexPath string, debugMode bool) Indexer {
 	index, err := bleve.Open(indexPath)
 
 	if err == bleve.ErrorIndexPathDoesNotExist {
-		var mapping bleve.IndexMapping
+		var mapping mapping.IndexMappingImpl
 		err = json.Unmarshal(MAPPING, &mapping)
 
 		if err != nil {
@@ -210,7 +211,14 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 		fileIndex := docToFileIndex(doc)
 
 		// Merge metadata
-		mergeFileIndex(fileIndex, organization, project, repo, refs, filePath, ext)
+		same := mergeFileIndex(fileIndex, organization, project, repo, refs, filePath, ext)
+
+		if same {
+			if b.debug {
+				log.Println("Skipped index")
+			}
+			return nil
+		}
 
 		err := b.index(blob, fileIndex)
 
@@ -219,7 +227,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 			return err
 		}
 		if b.debug {
-			log.Println("Update Indexed")
+			log.Println("Updated index")
 		}
 
 	} else {
@@ -232,7 +240,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 			return err
 		}
 		if b.debug {
-			log.Println("Add Indexed")
+			log.Println("Added index")
 		}
 	}
 

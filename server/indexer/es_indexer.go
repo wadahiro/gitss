@@ -21,7 +21,7 @@ import (
 type ESIndexer struct {
 	client *elastic.Client
 	reader *repo.GitRepoReader
-	debug bool
+	debug  bool
 }
 
 // var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
@@ -212,7 +212,14 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			return err
 		}
 
-		mergeFileIndex(&fileIndex, organization, project, repo, branch, filePath, ext)
+		same := mergeFileIndex(&fileIndex, organization, project, repo, branch, filePath, ext)
+
+		if same {
+			if esi.debug {
+				log.Println("Skipped index")
+			}
+			return nil
+		}
 
 		_, err := esi.client.Update().
 			Index("gosource").
@@ -224,6 +231,9 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 		if err != nil {
 			log.Println("Upsert Doc error", err)
 			return err
+		}
+		if esi.debug {
+			log.Println("Updated index")
 		}
 
 	} else {
@@ -247,9 +257,11 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			log.Println("Add Doc error", err)
 			return err
 		}
+		if esi.debug {
+			log.Println("Added index")
+		}
 	}
 
-	log.Println("Indexed!")
 	return nil
 }
 
@@ -330,4 +342,3 @@ func (esi *ESIndexer) search(query string) SearchResult {
 
 	return SearchResult{Hits: list, Size: searchResult.Hits.TotalHits}
 }
-

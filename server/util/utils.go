@@ -3,6 +3,8 @@ package util
 import (
 	// "fmt"
 	"io"
+	// "log"
+	"fmt"
 	"strings"
 )
 
@@ -35,7 +37,7 @@ func FilterTextPreview(r io.Reader, filter func(line string) bool, before int, a
 			// Checking need to merge with previous preview
 
 			if hasPreview {
-				lastLinuNum := beforePreview.Offset + len(beforePreview.previews) - 1
+				lastLineNum := beforePreview.Offset + len(beforePreview.previews) - 1
 				lastHitNum := beforePreview.Hits[len(beforePreview.Hits)-1]
 
 				// concat
@@ -44,9 +46,11 @@ func FilterTextPreview(r io.Reader, filter func(line string) bool, before int, a
 					continue
 				}
 
-				if offset <= (lastLinuNum + 1) {
+				if offset <= (lastLineNum + 1) {
 					// reduce duplication
-					start := lastLinuNum - offset
+					start := (lastLineNum + 1) - offset
+					// fmt.Println("before", len(before), lineNum, line, lastLineNum, offset, start)
+
 					lines := append(before[start:], line)
 
 					appendPreview(beforePreview, lineNum, lines...)

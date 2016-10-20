@@ -2,6 +2,7 @@ package importer
 
 import (
 	"bytes"
+	"log"
 	"fmt"
 	"strings"
 	// "io"
@@ -13,21 +14,21 @@ import (
 	"github.com/wadahiro/gitss/server/repo"
 
 	gitm "github.com/gogits/git-module"
-	"gopkg.in/src-d/go-git.v4"
+	"time"
 )
 
 type GitImporter struct {
-	dataDir   string
-	indexer   indexer.Indexer
-	debugMode bool
+	dataDir string
+	indexer indexer.Indexer
+	debug   bool
 }
 
 func NewGitImporter(dataDir string, indexer indexer.Indexer, debugMode bool) *GitImporter {
-	return &GitImporter{dataDir: dataDir, indexer: indexer, debugMode: debugMode}
+	return &GitImporter{dataDir: dataDir, indexer: indexer, debug: debugMode}
 }
 
 func (g *GitImporter) Run(organization string, projectName string, url string) {
-	fmt.Printf("Clone from %s %s %s\n", organization, projectName, url)
+	log.Printf("Clone from %s %s %s\n", organization, projectName, url)
 
 	splitedUrl := strings.Split(url, "/")
 	repoName := splitedUrl[len(splitedUrl)-1]
@@ -45,7 +46,7 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 		// panic(err)
 	}
 
-	fmt.Println("Fetch...")
+	log.Println("Fetch...")
 	FetchAll(repoPath)
 	// git.Pull(repoPath, git.PullRemoteOptions{All: true})
 
@@ -57,7 +58,7 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 	branches, _ := repo.GetBranches()
 
 	for _, branch := range branches {
-		fmt.Println(branch)
+		log.Println(branch)
 		g.CreateBranchIndex(repo, branch)
 	}
 }
@@ -65,28 +66,48 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	commitId, _ := repo.GetBranchCommitID(branchName)
 
-	fmt.Println("Commit:", commitId)
+	if g.debug {
+		log.Printf("Indexing start: @%s %s/%s (%s) %s\n", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
+	}
+	
+	start := time.Now()
 
-	containBranches, _ := ContainsBranch(repo.Path, commitId)
-	fmt.Println("ContainsBranches", containBranches)
+	// containBranches, _ := ContainsBranch(repo.Path, commitId)
+
+	// if g.debug {
+	// 	log.Println("ContainsBranches", containBranches)
+	// }
 
 	// commit, err := repo.GetCommit(commitId)
 
 	commit, _ := repo.GetCommit(commitId)
-	tree, _ := commit.Tree()
+	tree := commit.Tree()
 
-	tree.Files().ForEach(func(f *git.File) error {
-		fmt.Printf("100644 blob %s %s %d\n", f.Hash, f.Name, f.Size)
+	iter := tree.Files()
 
-		if f.Size > 1024*1000*1000 {
-			return nil
+	defer func() {
+		iter.Close()
+	}()
+
+	for true {
+		f, err := iter.Next()
+		if err != nil {
+			break
+		}
+
+		if g.debug {
+			log.Printf("100644 blob %s %s %d\n", f.Hash, f.Name, f.Size)
+		}
+
+		if f.Size > 1024*1024 { // 1MB
+			continue
 		}
 
 		blobHash := f.Hash.String()
 
 		blob, err := repo.Blob(f.Hash)
 		if err != nil {
-			return nil
+			continue
 		}
 
 		reader, _ := blob.Reader()
@@ -96,9 +117,11 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 		content := buf.String()
 
 		g.CreateFileIndex(repo.Organization, repo.Project, repo.Repository, branchName, f.Name, blobHash, content)
-
-		return nil
-	})
+	}
+	
+	end := time.Now()
+	time := (end.Sub(start)).Seconds()
+	log.Printf("Indexing Complete! [%d seconds]\n", time)
 }
 
 func (g *GitImporter) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) {
@@ -120,14 +143,14 @@ func ContainsBranch(repoPath string, commitId string) ([]string, error) {
 
 	stdout, err := cmd.RunInDir(repoPath)
 
-	// fmt.Println("--------------->", err)
+	// log.Println("--------------->", err)
 	if err != nil {
 		return nil, err
 	}
-	// fmt.Println("--------------->", stdout)
+	// log.Println("--------------->", stdout)
 
 	infos := strings.Split(stdout, "\n")
-	// fmt.Println(len(infos))
+	// log.Println(len(infos))
 	branches := make([]string, len(infos)-1)
 	for i, info := range infos[:len(infos)-1] {
 		branches[i] = info[2:]

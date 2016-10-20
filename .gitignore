@@ -14,3 +14,4 @@ vendor
 .dll
 repodata
 build
+*.bak

@@ -7,12 +7,13 @@ import (
 	// "os"
 	// "path/filepath"
 	"fmt"
+	"gopkg.in/src-d/go-git.v3/utils/fs"
 	// "strings"
 	"github.com/wadahiro/gitss/server/util"
 
 	gitm "github.com/gogits/git-module"
-	"gopkg.in/src-d/go-git.v4"
-	core "gopkg.in/src-d/go-git.v4/core"
+	"gopkg.in/src-d/go-git.v3"
+	core "gopkg.in/src-d/go-git.v3/core"
 	"log"
 )
 
@@ -53,7 +54,8 @@ func NewGitRepo(organization string, projectName string, repoName string, repoPa
 		return nil, err
 	}
 
-	r, _ := git.NewFilesystemRepository(repoPath)
+	fs := fs.NewOS()
+	r, _ := git.NewRepositoryFromFS(fs, repoPath)
 
 	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: r}, nil
 }

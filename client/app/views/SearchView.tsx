@@ -10,21 +10,28 @@ import { Grid, Row, Col } from '../components/Grid';
 import { FileContent } from '../components/FileContent';
 import { RootState, SearchResult } from '../reducers';
 
+const MDSpinner = require('react-md-spinner').default;
+
 interface Props {
-    result: SearchResult
+    loading: boolean;
+    result: SearchResult;
 }
 
 class SearchView extends React.Component<Props, void> {
     render() {
-        const { result } = this.props;
+        const { loading, result } = this.props;
         return (
             <div>
                 <Row>
                     <Col xs={12}>
-                        <h4>We’ve found {result.size} code results {result.time > 0 ? `(${Math.round(result.time * 1000) / 1000} seconds)` : ''}</h4>
+                        {loading ?
+                            <h4><MDSpinner /></h4>
+                            :
+                            <h4>We’ve found {result.size}&nbsp;code results {result.time > 0 ? `(${Math.round(result.time * 1000) / 1000} seconds)` : ''}</h4>
+                        }
                     </Col>
                 </Row>
-                <Divider/>
+                <Divider />
                 {result.hits.map(x => {
                     return (
                         <Row key={x._source.blob}>
@@ -41,6 +48,7 @@ class SearchView extends React.Component<Props, void> {
 
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
+        loading: state.app.present.loading,
         result: state.app.present.result
     };
 }

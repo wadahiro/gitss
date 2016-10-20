@@ -10,8 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/wadahiro/gitss/server/indexer"
-	// "gopkg.in/src-d/go-git.v4"
-	// core "gopkg.in/src-d/go-git.v4/core"
 )
 
 func SearchIndex(c *gin.Context) {

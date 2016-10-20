@@ -113,7 +113,7 @@ export class FileContent extends React.Component<Props, State>{
                                 backgroundColor={indigo50}
                                 style={styles.chip}
                                 >
-                                {`${x.project}/${x.repository} (${x.refs}) - ${x.path}`}
+                                {`@${x.organization}:${x.project}/${x.repository} (${x.refs}) - ${x.path}`}
                             </Chip>
                         );
                     })}

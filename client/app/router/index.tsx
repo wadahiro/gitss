@@ -41,8 +41,6 @@ export function run() {
     const store = configureStore(window['--app-initial']);
     setAsCurrentStore(store);
 
-    console.log("do SSR render")
-
     render(
         <Provider store={store}>
             <MuiThemeProvider muiTheme={muiTheme}>

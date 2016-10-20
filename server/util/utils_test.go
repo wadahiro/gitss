@@ -63,3 +63,28 @@ hoge
 		t.Errorf("result preview lines is %#v", len(strings.Split(result[0].Preview, "\n")))
 	}
 }
+
+
+func TestFilterPreviewText2(t *testing.T) {
+	r := strings.NewReader(`
+1
+hit
+2
+3
+4
+5
+hit
+`)
+
+	result := FilterTextPreview(r, func(line string) bool {
+		return strings.Contains(line, "hit")
+	}, 2, 2)
+
+	for i, preview := range result {
+		fmt.Println(preview.Hits)
+		for j, line := range strings.Split(preview.Preview, "\n") {
+			fmt.Println(i, preview.Offset+j, line)
+		}
+	}
+
+}

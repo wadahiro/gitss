@@ -92,7 +92,7 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func mergeFileIndex(fileIndex *FileIndex, organization string, project string, repo string, refs string, filePath string, ext string) {
+func mergeFileIndex(fileIndex *FileIndex, organization string, project string, repo string, refs string, filePath string, ext string) bool {
 	f := func(x Metadata, i int) bool {
 		return x.Organization == organization &&
 			x.Project == project &&
@@ -102,10 +102,12 @@ func mergeFileIndex(fileIndex *FileIndex, organization string, project string, r
 	}
 	found := find(f, fileIndex.Metadata)
 	// log.Println("before:", fileIndex.Metadata)
-	if found == nil {
-		fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Organization: organization, Project: project, Repository: repo, Refs: refs, Path: filePath, Ext: ext})
+	if found != nil {
+		return true
 	}
+	fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Organization: organization, Project: project, Repository: repo, Refs: refs, Path: filePath, Ext: ext})
 	// log.Println("merged:", fileIndex.Metadata)
+	return false
 }
 
 func mergeSet(m1, m2 map[string]struct{}) map[string]struct{} {

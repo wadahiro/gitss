@@ -20,7 +20,8 @@ export interface AppStateHistory {
 }
 
 export interface AppState {
-    result: SearchResult
+    loading: boolean;
+    result: SearchResult;
 }
 
 export interface SearchResult {
@@ -48,6 +49,7 @@ export interface Source {
 }
 
 export interface FileMetadata {
+    organization: string;
     project: string;
     repository: string;
     refs: string;
@@ -57,6 +59,7 @@ export interface FileMetadata {
 
 function init(): AppState {
     return {
+        loading: false,
         result: {
             time: -1,
             size: 0,
@@ -71,9 +74,14 @@ function init(): AppState {
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
+        case 'SEARCH_START':
+            return Object.assign({}, state, {
+                loading: true
+            });
         case 'SEARCH':
             return Object.assign({}, state, {
-                result: action.payload.result
+                result: action.payload.result,
+                loading: false
             });
     }
 
