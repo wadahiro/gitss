@@ -37,12 +37,9 @@ build:
           go version
           go get -u github.com/mattn/gom
     - script:
-        name: gom install
-        code: |
-          gom install
-    - script:
         name: build & archive
         code: |
+          gom install
           npm run build
     - script:
         name: move to output
