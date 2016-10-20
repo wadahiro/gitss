@@ -40,6 +40,10 @@ build:
         name: build & archive
         code: |
           gom install
+          ls -al .
+          ls -al vendor/**/**/**
+          echo $GO15VENDOREXPERIMENT
+          echo $GOM_VENDOR_NAME
           npm run build
     - script:
         name: move to output
