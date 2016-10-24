@@ -260,7 +260,13 @@ func (b *BleveIndexer) BatchFileIndex(requestFileIndex []FileIndex, batchMethod 
 	batch := b.client.NewBatch()
 	for i := range requestFileIndex {
 		f := requestFileIndex[i]
-		batch.Index(f.Blob, f)
+
+		switch batchMethod {
+		case ADD:
+			batch.Index(f.Blob, f)
+		case DELETE:
+			batch.Delete(f.Blob)
+		}
 	}
 	b.client.Batch(batch)
 	return nil

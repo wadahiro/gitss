@@ -19,7 +19,7 @@ var BuildTarget = "develop"  // inject by LDFLAGS build option
 
 func main() {
 	args := os.Args
-	if BuildTarget == "develop" {
+	if BuildTarget == "develop" && len(args) == 1 {
 		args = []string{"gitss", "server"}
 	}
 

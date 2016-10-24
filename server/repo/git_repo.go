@@ -68,6 +68,8 @@ func NewGitRepo(organization string, projectName string, repoName string, repoPa
 	fs := fs.NewOS()
 	r, _ := git.NewRepositoryFromFS(fs, repoPath)
 
+	// fmt.Println("GitRepo:", repoPath)
+
 	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: r}, nil
 }
 
@@ -142,6 +144,7 @@ type FileEntry struct {
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
 	commit, err := r.GetCommit(commitId)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 

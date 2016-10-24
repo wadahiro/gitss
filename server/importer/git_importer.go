@@ -34,13 +34,11 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 
 	splitedUrl := strings.Split(url, "/")
 	repoName := splitedUrl[len(splitedUrl)-1]
-	repoPath := fmt.Sprintf("%s/%s/%s/%s", g.config.GitDataDir, organization, projectName, repoName)
-
 	// Drop ".git" from repoName
 	splitedRepoNames := strings.Split(repoName, ".git")
-	if len(splitedRepoNames) > 1 {
-		repoName = splitedRepoNames[0]
-	}
+	repoName = splitedRepoNames[0]
+
+	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", g.config.GitDataDir, organization, projectName, repoName)
 
 	if err := gitm.Clone(url, repoPath,
 		gitm.CloneRepoOptions{Mirror: true}); err != nil {
@@ -60,11 +58,11 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 	branches, _ := repo.GetBranches()
 
 	for _, branch := range branches {
-		g.RunIndexing(repo, branch)
+		g.RunIndexing(url, repo, branch)
 	}
 }
 
-func (g *GitImporter) RunIndexing(repo *repo.GitRepo, branchName string) {
+func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName string) {
 	latestCommitId, _ := repo.GetBranchCommitID(branchName)
 	indexedCommitId, notFound := g.config.GetIndexedCommitID(config.LatestIndex{
 		Organization: repo.Organization,
@@ -74,7 +72,7 @@ func (g *GitImporter) RunIndexing(repo *repo.GitRepo, branchName string) {
 	})
 
 	tag := getLoggingTag(repo, branchName, latestCommitId)
-	fmt.Printf("Indexing start: %s\n", tag)
+	fmt.Printf("Indexing start: %s %v\n", tag, notFound)
 
 	start := time.Now()
 
@@ -85,7 +83,7 @@ func (g *GitImporter) RunIndexing(repo *repo.GitRepo, branchName string) {
 	}
 
 	// Save config after index completed
-	g.config.UpdateLatestIndex(config.LatestIndex{
+	g.config.UpdateLatestIndex(url, config.LatestIndex{
 		Organization: repo.Organization,
 		Project:      repo.Project,
 		Repository:   repo.Repository,
@@ -99,14 +97,14 @@ func (g *GitImporter) RunIndexing(repo *repo.GitRepo, branchName string) {
 
 func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string, latestCommitId string) {
 	addList, err := repo.GetFileEntries(latestCommitId)
-	if err != nil {
+	if err == nil {
 		g.handleAddBatch(repo, branchName, latestCommitId, addList)
 	}
 }
 
 func (g *GitImporter) UpdateBranchIndex(repo *repo.GitRepo, branchName string, fromCommitId string, toCommitId string) {
 	addList, delList, err := repo.GetDiffList(fromCommitId, toCommitId)
-	if err != nil {
+	if err == nil {
 		g.handleAddBatch(repo, branchName, toCommitId, addList)
 		g.handleDeleteBatch(repo, branchName, toCommitId, delList)
 	}
@@ -182,7 +180,7 @@ func (g *GitImporter) handleDeleteBatch(repo *repo.GitRepo, branchName string, c
 }
 
 func (g *GitImporter) handleBatch(batch []indexer.FileIndex, batchMethod indexer.BatchMethod, batchSize int) []indexer.FileIndex {
-	if batchSize > 0 && len(batch) == batchSize {
+	if len(batch) > 0 && (batchSize == -1 || len(batch) >= batchSize) {
 
 		fmt.Printf("Indexed %d files start\n", len(batch))
 		g.indexer.BatchFileIndex(batch, batchMethod)
