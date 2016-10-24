@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/src-d/go-git.v3/utils/fs"
 	// "strings"
+	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/util"
 
 	"bytes"
@@ -23,18 +24,17 @@ import (
 )
 
 type GitRepoReader struct {
-	dataDir   string
-	debugMode bool
+	gitDataDir string
+	debug      bool
 }
 
-func NewGitRepoReader(dataDir string, debugMode bool) *GitRepoReader {
-	reader := &GitRepoReader{dataDir: dataDir, debugMode: debugMode}
+func NewGitRepoReader(config config.Config) *GitRepoReader {
+	reader := &GitRepoReader{gitDataDir: config.GitDataDir, debug: config.Debug}
 	return reader
 }
 
 func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) *GitRepo {
-
-	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", r.dataDir, organization, project, repoName)
+	repoPath := getRepoPath(r.gitDataDir, organization, project, repoName)
 
 	repo, err := NewGitRepo(organization, project, repoName, repoPath)
 	if err != nil {
@@ -51,6 +51,12 @@ type GitRepo struct {
 	Path         string
 	gitmRepo     *gitm.Repository
 	repo         *git.Repository
+}
+
+type Source struct {
+	Offset  int    `json:"offset"`
+	Preview string `json:"preview"`
+	Hits    []int  `json:"hits"`
 }
 
 func NewGitRepo(organization string, projectName string, repoName string, repoPath string) (*GitRepo, error) {
@@ -99,12 +105,7 @@ func (r *GitRepo) GetBlobContent(blobId string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (r *GitRepo) DetectBlobContentType(blobId string) (string, error) {
-	blob, err := r.GetBlob(blobId)
-	if err != nil {
-		return "", err
-	}
-
+func (r *GitRepo) DetectBlobContentType(blob *git.Blob) (string, error) {
 	reader, _ := blob.Reader()
 
 	defer reader.Close()
@@ -132,8 +133,104 @@ func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, befor
 	return previews
 }
 
-type Source struct {
-	Offset  int    `json:"offset"`
-	Preview string `json:"preview"`
-	Hits    []int  `json:"hits"`
+type FileEntry struct {
+	Blob string
+	Path string
+	Size int64
+}
+
+func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
+	commit, err := r.GetCommit(commitId)
+	if err != nil {
+		return nil, err
+	}
+
+	tree := commit.Tree()
+	iter := tree.Files()
+	defer iter.Close()
+
+	list := []FileEntry{}
+
+	for true {
+		f, err := iter.Next()
+		if err != nil {
+			break
+		}
+
+		blob := f.Hash.String()
+		list = append(list, FileEntry{Blob: blob, Path: f.Name, Size: f.Size})
+	}
+	return list, nil
+}
+
+func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry, error) {
+	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	addList := []FileEntry{}
+	delList := []FileEntry{}
+
+	parts := bytes.Split(stdout, []byte{'\u0000'})
+
+	for index := 0; index < len(parts); index++ {
+		row := parts[index]
+		cols := bytes.Split(row, []byte{' '})
+
+		if len(cols) <= 6 {
+			continue
+		}
+
+		oldBlob := string(cols[2])
+		newBlob := string(cols[2])
+		status := string(cols[4])[0:1]
+
+		// See 'Possible status letters' in https://git-scm.com/docs/git-diff
+		switch status {
+		case "A": // Add case
+			index++
+			path := string(parts[index])
+			addList = append(addList, FileEntry{Blob: newBlob, Path: path})
+
+		case "C": // Copy case
+			index = index + 2
+			toPath := string(parts[index])
+			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
+
+		case "D": // Delete case
+			index++
+			path := string(parts[index])
+			delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
+
+		case "M": // Modify case
+		case "T": // Change in the type of the file case
+			index++
+			if oldBlob != newBlob {
+				path := string(parts[index])
+				delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
+				addList = append(addList, FileEntry{Blob: newBlob, Path: path})
+			}
+
+		case "R": // Rename case
+			index++
+			fromPath := string(parts[index])
+			index++
+			toPath := string(parts[index])
+			delList = append(delList, FileEntry{Blob: oldBlob, Path: fromPath})
+			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
+
+		case "U": // Unmerge case
+			continue
+		case "X": // Delete case
+			log.Println("unknown change type (most probably a git bug, please report it)")
+		}
+	}
+
+	return addList, delList, nil
+}
+
+func getRepoPath(gitDataDir string, organization string, project string, repoName string) string {
+	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", gitDataDir, organization, project, repoName)
+	return repoPath
 }

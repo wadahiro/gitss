@@ -6,18 +6,20 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+	"strconv"
 
 	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/contrib/renders/multitemplate"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/nu7hatch/gouuid"
+	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/controller"
 	"github.com/wadahiro/gitss/server/indexer"
 )
 
-func initRouter(indexer indexer.Indexer, port string, debugMode bool, gitDataDir string) {
-	if !debugMode {
+func initRouter(config config.Config, indexer indexer.Indexer) {
+	if !config.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -30,7 +32,7 @@ func initRouter(indexer indexer.Indexer, port string, debugMode bool, gitDataDir
 	})
 
 	r.Use(func(c *gin.Context) {
-		c.Set("gitDataDir", gitDataDir)
+		c.Set("gitDataDir", config.GitDataDir)
 	})
 
 	// r.LoadHTMLGlob("server/templates/*")
@@ -68,7 +70,7 @@ func initRouter(indexer indexer.Indexer, port string, debugMode bool, gitDataDir
 
 	r.Use(static.Serve("/", BinaryFileSystem("assets")))
 
-	r.Run(":" + port)
+	r.Run(":" + strconv.Itoa(config.Port))
 }
 
 func loadTemplates(list ...string) multitemplate.Render {

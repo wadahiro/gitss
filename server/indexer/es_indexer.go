@@ -9,6 +9,7 @@ import (
 	// "fmt"
 	"log"
 	// "strings"
+	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/repo"
 
 	// "fmt"
@@ -24,12 +25,12 @@ type ESIndexer struct {
 
 // var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
 
-func NewESIndexer(reader *repo.GitRepoReader, debugMode bool) Indexer {
+func NewESIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
 	client, err := elastic.NewClient(elastic.SetURL())
 	if err != nil {
 		panic(err)
 	}
-	i := &ESIndexer{client: client, reader: reader, debug: debugMode}
+	i := &ESIndexer{client: client, reader: reader, debug: config.Debug}
 	i.Init()
 	return i
 }
@@ -174,11 +175,6 @@ func (esi *ESIndexer) Init() {
 	}
 }
 
-
-func (e *ESIndexer) UpdateLatestIndex(latestIndex LatestIndex) error {
-	return nil
-}
-
 func (e *ESIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
 	fillFileExt(&requestFileIndex)
 
@@ -196,7 +192,7 @@ func (e *ESIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
-func (e *ESIndexer) BatchFileIndex(fileIndex []FileIndex) error {
+func (e *ESIndexer) BatchFileIndex(fileIndex []FileIndex, batchMethod BatchMethod) error {
 	return nil
 }
 

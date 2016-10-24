@@ -11,6 +11,7 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/repo"
 )
 
@@ -212,12 +213,14 @@ var MAPPING = []byte(`{
 var BLEVE_HIT_TAG = regexp.MustCompile(`<mark>(.*)</mark>`)
 
 type BleveIndexer struct {
+	config config.Config
 	client bleve.Index
 	reader *repo.GitRepoReader
 	debug  bool
 }
 
-func NewBleveIndexer(reader *repo.GitRepoReader, indexPath string, debugMode bool) Indexer {
+func NewBleveIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
+	indexPath := config.DataDir + "/bleve_index"
 	index, err := bleve.Open(indexPath)
 
 	if err == bleve.ErrorIndexPathDoesNotExist {
@@ -237,14 +240,9 @@ func NewBleveIndexer(reader *repo.GitRepoReader, indexPath string, debugMode boo
 		}
 	}
 
-	i := &BleveIndexer{client: index, reader: reader, debug: debugMode}
+	i := &BleveIndexer{client: index, reader: reader, debug: config.Debug}
 
 	return i
-}
-
-
-func (b *BleveIndexer) UpdateLatestIndex(latestIndex LatestIndex) error {
-	return nil
 }
 
 func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
@@ -258,7 +256,7 @@ func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
-func (b *BleveIndexer) BatchFileIndex(requestFileIndex []FileIndex) error {
+func (b *BleveIndexer) BatchFileIndex(requestFileIndex []FileIndex, batchMethod BatchMethod) error {
 	batch := b.client.NewBatch()
 	for i := range requestFileIndex {
 		f := requestFileIndex[i]

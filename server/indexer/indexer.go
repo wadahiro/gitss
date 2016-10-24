@@ -11,21 +11,19 @@ import (
 )
 
 type Indexer interface {
-	UpdateLatestIndex(latestIndex LatestIndex) error
-
 	CreateFileIndex(requestFileIndex FileIndex) error
 	UpsertFileIndex(requestFileIndex FileIndex) error
-	BatchFileIndex(requestFileIndex []FileIndex) error
+	BatchFileIndex(requestFileIndex []FileIndex, mode BatchMethod) error
 
 	SearchQuery(query string) SearchResult
 }
 
-type LatestIndex struct {
-	Organization string `json:"organization"`
-	Project      string `json:"project"`
-	Repository   string `json:"repository"`
-	Ref          string `json:"ref"`
-}
+type BatchMethod int
+
+const (
+    ADD BatchMethod = iota
+    DELETE
+)
 
 type FileIndex struct {
 	Blob     string     `json:"blob"`
