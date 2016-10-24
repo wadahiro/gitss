@@ -4,12 +4,10 @@ import (
 	// "bytes"
 	"encoding/json"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	// "fmt"
 	"log"
-	"path"
 	// "strings"
 	"github.com/wadahiro/gitss/server/repo"
 
@@ -176,17 +174,19 @@ func (esi *ESIndexer) Init() {
 	}
 }
 
-func (esi *ESIndexer) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
 
-	ext := path.Ext(filePath)
+func (e *ESIndexer) UpdateLatestIndex(latestIndex LatestIndex) error {
+	return nil
+}
 
-	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: content}
+func (e *ESIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
+	fillFileExt(&requestFileIndex)
 
-	_, err := esi.client.Index().
+	_, err := e.client.Index().
 		Index("gosource").
 		Type("file").
-		Id(blob).
-		BodyJson(fileIndex).
+		Id(requestFileIndex.Blob).
+		BodyJson(&requestFileIndex).
 		Refresh(true).
 		Do()
 
@@ -196,18 +196,17 @@ func (esi *ESIndexer) CreateFileIndex(organization string, project string, repo 
 	return nil
 }
 
-func (b *ESIndexer) BatchFileIndex(fileIndex *[]FileIndex) error {
+func (e *ESIndexer) BatchFileIndex(fileIndex []FileIndex) error {
 	return nil
 }
 
-func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
+func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
+	fillFileExt(&requestFileIndex)
 
-	ext := path.Ext(filePath)
-
-	get, err := esi.client.Get().
+	get, err := e.client.Get().
 		Index("gosource").
 		Type("file").
-		Id(blob).
+		Id(requestFileIndex.Blob).
 		Do()
 
 	if err == nil && get.Found {
@@ -216,19 +215,19 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			return err
 		}
 
-		same := mergeFileIndex(&fileIndex, organization, project, repo, branch, filePath, ext)
+		same := mergeFileIndex(&fileIndex, requestFileIndex.Metadata)
 
 		if same {
-			if esi.debug {
+			if e.debug {
 				log.Println("Skipped index")
 			}
 			return nil
 		}
 
-		_, err := esi.client.Update().
+		_, err := e.client.Update().
 			Index("gosource").
 			Type("file").
-			Id(blob).
+			Id(requestFileIndex.Blob).
 			Doc(fileIndex).
 			Do()
 
@@ -236,24 +235,16 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			log.Println("Upsert Doc error", err)
 			return err
 		}
-		if esi.debug {
+		if e.debug {
 			log.Println("Updated index")
 		}
 
 	} else {
-		lines := strings.Split(content, "\n")
-		newLines := []string{}
-		for i, l := range lines {
-			newLines = append(newLines, "["+strconv.Itoa(i+1)+"] "+l)
-		}
-
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
-
-		_, err := esi.client.Index().
+		_, err := e.client.Index().
 			Index("gosource").
 			Type("file").
-			Id(blob).
-			BodyJson(fileIndex).
+			Id(requestFileIndex.Blob).
+			BodyJson(&requestFileIndex).
 			Refresh(true).
 			Do()
 
@@ -261,7 +252,7 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			log.Println("Add Doc error", err)
 			return err
 		}
-		if esi.debug {
+		if e.debug {
 			log.Println("Added index")
 		}
 	}
@@ -269,19 +260,19 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 	return nil
 }
 
-func (esi *ESIndexer) SearchQuery(query string) SearchResult {
+func (e *ESIndexer) SearchQuery(query string) SearchResult {
 	start := time.Now()
-	result := esi.search(query)
+	result := e.search(query)
 	end := time.Now()
 
 	result.Time = (end.Sub(start)).Seconds()
 	return result
 }
 
-func (esi *ESIndexer) search(query string) SearchResult {
+func (e *ESIndexer) search(query string) SearchResult {
 	// termQuery := elastic.NewTermsQuery("content", strings.Split(query, " "))
 	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
-	searchResult, err := esi.client.Search().
+	searchResult, err := e.client.Search().
 		Index("gosource"). // search in index "twitter"
 		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("blob", "metadata")).
 		Query(q). // specify the query
@@ -313,7 +304,7 @@ func (esi *ESIndexer) search(query string) SearchResult {
 			log.Println("hitWords", hitWordsSet)
 
 			// get the file text
-			gitRepo := getGitRepo(esi.reader, &s)
+			gitRepo := getGitRepo(e.reader, &s)
 
 			// make preview
 			preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {

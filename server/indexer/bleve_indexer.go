@@ -3,7 +3,6 @@ package indexer
 import (
 	"encoding/json"
 	"log"
-	"path"
 	"time"
 	// "strconv"
 	"regexp"
@@ -243,13 +242,15 @@ func NewBleveIndexer(reader *repo.GitRepoReader, indexPath string, debugMode boo
 	return i
 }
 
-func (b *BleveIndexer) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) error {
 
-	ext := path.Ext(filePath)
+func (b *BleveIndexer) UpdateLatestIndex(latestIndex LatestIndex) error {
+	return nil
+}
 
-	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: content}
+func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
+	fillFileExt(&requestFileIndex)
 
-	err := b.index(blob, &fileIndex)
+	err := b.index(requestFileIndex.Blob, &requestFileIndex)
 
 	if err != nil {
 		return err
@@ -257,21 +258,20 @@ func (b *BleveIndexer) CreateFileIndex(organization string, project string, repo
 	return nil
 }
 
-func (b *BleveIndexer) BatchFileIndex(fileIndex *[]FileIndex) error {
+func (b *BleveIndexer) BatchFileIndex(requestFileIndex []FileIndex) error {
 	batch := b.client.NewBatch()
-	for i := range *fileIndex {
-		f := (*fileIndex)[i]
+	for i := range requestFileIndex {
+		f := requestFileIndex[i]
 		batch.Index(f.Blob, f)
 	}
 	b.client.Batch(batch)
 	return nil
 }
 
-func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo string, ref string, filePath string, blob string, content string) error {
+func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
+	fillFileExt(&requestFileIndex)
 
-	ext := path.Ext(filePath)
-
-	doc, _ := b.client.Document(blob)
+	doc, _ := b.client.Document(requestFileIndex.Blob)
 
 	if doc != nil {
 		// Update
@@ -280,7 +280,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 		fileIndex := docToFileIndex(doc)
 
 		// Merge metadata
-		same := mergeFileIndex(fileIndex, organization, project, repo, ref, filePath, ext)
+		same := mergeFileIndex(fileIndex, requestFileIndex.Metadata)
 
 		if same {
 			if b.debug {
@@ -289,7 +289,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 			return nil
 		}
 
-		err := b.index(blob, fileIndex)
+		err := b.index(requestFileIndex.Blob, fileIndex)
 
 		if err != nil {
 			log.Println("Upsert Doc error", err)
@@ -300,9 +300,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 		}
 
 	} else {
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: ref, Path: filePath, Ext: ext}}, Content: content}
-
-		err := b.index(blob, &fileIndex)
+		err := b.index(requestFileIndex.Blob, &requestFileIndex)
 
 		if err != nil {
 			log.Println("Add Doc error", err)

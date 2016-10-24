@@ -4,15 +4,19 @@ import (
 	"bytes"
 	"regexp"
 	// "log"
+	"path"
 
 	"github.com/wadahiro/gitss/server/repo"
 	"github.com/wadahiro/gitss/server/util"
 )
 
 type Indexer interface {
-	CreateFileIndex(organization string, project string, repo string, branch string, fileName string, blob string, content string) error
-	UpsertFileIndex(organization string, project string, repo string, branch string, fileName string, blob string, content string) error
-	BatchFileIndex(fileIndex *[]FileIndex) error
+	UpdateLatestIndex(latestIndex LatestIndex) error
+
+	CreateFileIndex(requestFileIndex FileIndex) error
+	UpsertFileIndex(requestFileIndex FileIndex) error
+	BatchFileIndex(requestFileIndex []FileIndex) error
+
 	SearchQuery(query string) SearchResult
 }
 
@@ -81,8 +85,32 @@ func getFileContent(repo *repo.GitRepo, s *Source) string {
 	return text
 }
 
-func find(f func(s Metadata, i int) bool, s []Metadata) *Metadata {
-	for index, x := range s {
+func NewFileIndex(blob string, organization string, project string, repo string, ref string, path string, content string) FileIndex {
+	fileIndex := FileIndex{
+		Blob:    blob,
+		Content: content,
+		Metadata: []Metadata{
+			Metadata{
+				Organization: organization,
+				Project:      project,
+				Repository:   repo,
+				Ref:          ref,
+				Path:         path,
+			},
+		},
+	}
+	return fileIndex
+}
+
+func fillFileExt(fileIndex *FileIndex) {
+	for i := range fileIndex.Metadata {
+		ext := path.Ext(fileIndex.Metadata[i].Path)
+		fileIndex.Metadata[i].Ext = ext
+	}
+}
+
+func find(mList []Metadata, f func(m Metadata, i int) bool) *Metadata {
+	for index, x := range mList {
 		if f(x, index) == true {
 			return &x
 		}
@@ -100,21 +128,32 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func mergeFileIndex(fileIndex *FileIndex, organization string, project string, repo string, ref string, filePath string, ext string) bool {
-	f := func(x Metadata, i int) bool {
-		return x.Organization == organization &&
-			x.Project == project &&
-			x.Repository == repo &&
-			x.Ref == ref &&
-			x.Path == filePath
+func mergeFileIndex(fileIndex *FileIndex, metadata []Metadata) bool {
+	addMetadata := []Metadata{}
+
+	for i := range metadata {
+		m := metadata[i]
+
+		found := find(fileIndex.Metadata, func(n Metadata, j int) bool {
+			return m.Organization == n.Organization &&
+				m.Project == n.Project &&
+				m.Repository == n.Repository &&
+				m.Ref == n.Ref &&
+				m.Path == n.Path
+		})
+		if found == nil {
+			addMetadata = append(addMetadata, m)
+		}
 	}
-	found := find(f, fileIndex.Metadata)
-	// log.Println("before:", fileIndex.Metadata)
-	if found != nil {
+
+	// Same metadata case
+	if len(addMetadata) == 0 {
 		return true
 	}
-	fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Organization: organization, Project: project, Repository: repo, Ref: ref, Path: filePath, Ext: ext})
-	// log.Println("merged:", fileIndex.Metadata)
+
+	// Add metadata case
+	fileIndex.Metadata = append(fileIndex.Metadata, addMetadata...)
+
 	return false
 }
 

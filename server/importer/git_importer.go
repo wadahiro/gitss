@@ -151,7 +151,7 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 			tasks <- func() {
 				defer wg.Done()
 				fmt.Printf("Indexed %d files start\n", batchSize)
-				g.indexer.BatchFileIndex(&batchCopy)
+				g.indexer.BatchFileIndex(batchCopy)
 				batch = nil
 				fmt.Printf("Indexed %d files end\n", batchSize)
 			}
@@ -159,7 +159,7 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 	}
 	if len(batch) > 0 {
 		fmt.Printf("Indexed %d files start\n", len(batch))
-		g.indexer.BatchFileIndex(&batch)
+		g.indexer.BatchFileIndex(batch)
 		fmt.Printf("Indexed %d files end\n", len(batch))
 	}
 	wg.Wait()
@@ -170,7 +170,8 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 }
 
 func (g *GitImporter) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) {
-	g.indexer.UpsertFileIndex(organization, project, repo, branch, filePath, blob, content)
+	fileIndex := indexer.NewFileIndex(blob, organization, project, repo, branch, filePath, content)
+	g.indexer.UpsertFileIndex(fileIndex)
 }
 
 func FetchAll(repoPath string) error {
