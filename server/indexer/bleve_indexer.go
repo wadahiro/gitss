@@ -17,7 +17,66 @@ import (
 
 var MAPPING = []byte(`{
 	"types": {
-		"gits": {
+		"latest": {
+			"enabled": true,
+			"dynamic": true,
+			"properties": {
+				"organization": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "en",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"project": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "en",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"repository": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "en",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"ref": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "en",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				}
+			},
+			"default_analyzer": ""
+		},
+		"file": {
 			"enabled": true,
 			"dynamic": true,
 			"properties": {
@@ -51,7 +110,7 @@ var MAPPING = []byte(`{
 					"enabled": true,
 					"dynamic": true,
 					"properties": {
-						"ext": {
+						"path": {
 							"enabled": true,
 							"dynamic": true,
 							"fields": [{
@@ -64,7 +123,7 @@ var MAPPING = []byte(`{
 							}],
 							"default_analyzer": ""
 						},
-						"path": {
+						"ext": {
 							"enabled": true,
 							"dynamic": true,
 							"fields": [{
@@ -103,7 +162,7 @@ var MAPPING = []byte(`{
 							}],
 							"default_analyzer": ""
 						},
-						"refs": {
+						"repository": {
 							"enabled": true,
 							"dynamic": true,
 							"fields": [{
@@ -116,7 +175,7 @@ var MAPPING = []byte(`{
 							}],
 							"default_analyzer": ""
 						},
-						"repository": {
+						"ref": {
 							"enabled": true,
 							"dynamic": true,
 							"fields": [{
@@ -188,7 +247,7 @@ func (b *BleveIndexer) CreateFileIndex(organization string, project string, repo
 
 	ext := path.Ext(filePath)
 
-	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: content}
+	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: content}
 
 	err := b.index(blob, &fileIndex)
 
@@ -208,7 +267,7 @@ func (b *BleveIndexer) BatchFileIndex(fileIndex *[]FileIndex) error {
 	return nil
 }
 
-func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo string, refs string, filePath string, blob string, content string) error {
+func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo string, ref string, filePath string, blob string, content string) error {
 
 	ext := path.Ext(filePath)
 
@@ -221,7 +280,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 		fileIndex := docToFileIndex(doc)
 
 		// Merge metadata
-		same := mergeFileIndex(fileIndex, organization, project, repo, refs, filePath, ext)
+		same := mergeFileIndex(fileIndex, organization, project, repo, ref, filePath, ext)
 
 		if same {
 			if b.debug {
@@ -241,7 +300,7 @@ func (b *BleveIndexer) UpsertFileIndex(organization string, project string, repo
 		}
 
 	} else {
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: refs, Path: filePath, Ext: ext}}, Content: content}
+		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: ref, Path: filePath, Ext: ext}}, Content: content}
 
 		err := b.index(blob, &fileIndex)
 
@@ -281,10 +340,10 @@ func (b *BleveIndexer) SearchQuery(query string) SearchResult {
 
 func (b *BleveIndexer) search(query string) SearchResult {
 
-	q := bleve.NewQueryStringQuery(query)
+	q := bleve.NewWildcardQuery(query)
 	s := bleve.NewSearchRequest(q)
 
-	s.Fields = []string{"blob", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
+	s.Fields = []string{"blob", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.ref", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
 	searchResults, err := b.client.Search(s)
 
@@ -365,8 +424,8 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 				m.Project = value
 			case "repository":
 				m.Repository = value
-			case "refs":
-				m.Refs = value
+			case "ref":
+				m.Ref = value
 			case "path":
 				m.Path = value
 			case "ext":

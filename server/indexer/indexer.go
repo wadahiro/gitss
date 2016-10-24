@@ -16,6 +16,13 @@ type Indexer interface {
 	SearchQuery(query string) SearchResult
 }
 
+type LatestIndex struct {
+	Organization string `json:"organization"`
+	Project      string `json:"project"`
+	Repository   string `json:"repository"`
+	Ref          string `json:"ref"`
+}
+
 type FileIndex struct {
 	Blob     string     `json:"blob"`
 	Metadata []Metadata `json:"metadata"`
@@ -26,7 +33,7 @@ type Metadata struct {
 	Organization string `json:"organization"`
 	Project      string `json:"project"`
 	Repository   string `json:"repository"`
-	Refs         string `json:"refs"`
+	Ref          string `json:"ref"`
 	Path         string `json:"path"`
 	Ext          string `json:"ext"`
 }
@@ -93,12 +100,12 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func mergeFileIndex(fileIndex *FileIndex, organization string, project string, repo string, refs string, filePath string, ext string) bool {
+func mergeFileIndex(fileIndex *FileIndex, organization string, project string, repo string, ref string, filePath string, ext string) bool {
 	f := func(x Metadata, i int) bool {
 		return x.Organization == organization &&
 			x.Project == project &&
 			x.Repository == repo &&
-			x.Refs == refs &&
+			x.Ref == ref &&
 			x.Path == filePath
 	}
 	found := find(f, fileIndex.Metadata)
@@ -106,7 +113,7 @@ func mergeFileIndex(fileIndex *FileIndex, organization string, project string, r
 	if found != nil {
 		return true
 	}
-	fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Organization: organization, Project: project, Repository: repo, Refs: refs, Path: filePath, Ext: ext})
+	fileIndex.Metadata = append(fileIndex.Metadata, Metadata{Organization: organization, Project: project, Repository: repo, Ref: ref, Path: filePath, Ext: ext})
 	// log.Println("merged:", fileIndex.Metadata)
 	return false
 }

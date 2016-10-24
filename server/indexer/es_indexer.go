@@ -137,10 +137,10 @@ func (esi *ESIndexer) Init() {
 								}
 							}
 						},
-						refs: {
+						ref: {
 							type: "multi_field",
 							fields: {
-								refs: {
+								ref: {
 									type: "string",
 									index: "analyzed"
 								},
@@ -180,7 +180,7 @@ func (esi *ESIndexer) CreateFileIndex(organization string, project string, repo 
 
 	ext := path.Ext(filePath)
 
-	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: content}
+	fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: content}
 
 	_, err := esi.client.Index().
 		Index("gosource").
@@ -247,7 +247,7 @@ func (esi *ESIndexer) UpsertFileIndex(organization string, project string, repo 
 			newLines = append(newLines, "["+strconv.Itoa(i+1)+"] "+l)
 		}
 
-		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Refs: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
+		fileIndex := FileIndex{Blob: blob, Metadata: []Metadata{Metadata{Organization: organization, Project: project, Repository: repo, Ref: branch, Path: filePath, Ext: ext}}, Content: strings.Join(newLines, "\n")}
 
 		_, err := esi.client.Index().
 			Index("gosource").

@@ -109,11 +109,11 @@ export class FileContent extends React.Component<Props, State>{
                     {metadata.map(x => {
                         return (
                             <Chip
-                                key={`${x.project}_${x.repository}_${x.refs}_${x.path}`}
+                                key={`${x.project}_${x.repository}_${x.ref}_${x.path}`}
                                 backgroundColor={indigo50}
                                 style={styles.chip}
                                 >
-                                {`@${x.organization}:${x.project}/${x.repository} (${x.refs}) - ${x.path}`}
+                                {`@${x.organization}:${x.project}/${x.repository} (${x.ref}) - ${x.path}`}
                             </Chip>
                         );
                     })}

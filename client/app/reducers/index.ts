@@ -52,7 +52,7 @@ export interface FileMetadata {
     organization: string;
     project: string;
     repository: string;
-    refs: string;
+    ref: string;
     path: string;
     ext: string;
 }

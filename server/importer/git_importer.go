@@ -138,7 +138,7 @@ func (g *GitImporter) CreateBranchIndex(repo *repo.GitRepo, branchName string) {
 
 		// fmt.Println(textContent)
 
-		fileIndex := indexer.FileIndex{Blob: blobHash, Content: textContent, Metadata: []indexer.Metadata{indexer.Metadata{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Refs: branchName, Path: f.Name, Ext: path.Ext(f.Name)}}}
+		fileIndex := indexer.FileIndex{Blob: blobHash, Content: textContent, Metadata: []indexer.Metadata{indexer.Metadata{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Ref: branchName, Path: f.Name, Ext: path.Ext(f.Name)}}}
 
 		batch = append(batch, fileIndex)
 
