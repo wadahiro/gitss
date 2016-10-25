@@ -7,36 +7,38 @@ import (
 	// "os"
 	// "path/filepath"
 	"fmt"
+	"strconv"
+	"strings"
 
-	"gopkg.in/src-d/go-git.v3/utils/fs"
+	// "gopkg.in/src-d/go-git.v4/utils/fs"
 	// "strings"
 	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/util"
 
 	"bytes"
-	"io"
+	// "io"
 	"log"
 	"net/http"
 
 	gitm "github.com/gogits/git-module"
-	"gopkg.in/src-d/go-git.v3"
-	core "gopkg.in/src-d/go-git.v3/core"
+	// "gopkg.in/src-d/go-git.v4"
+	// core "gopkg.in/src-d/go-git.v4/core"
 )
 
 type GitRepoReader struct {
-	gitDataDir string
-	debug      bool
+	GitDataDir string
+	Debug      bool
 }
 
 func NewGitRepoReader(config config.Config) *GitRepoReader {
-	reader := &GitRepoReader{gitDataDir: config.GitDataDir, debug: config.Debug}
+	reader := &GitRepoReader{GitDataDir: config.GitDataDir, Debug: config.Debug}
 	return reader
 }
 
 func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) *GitRepo {
-	repoPath := getRepoPath(r.gitDataDir, organization, project, repoName)
+	repoPath := getRepoPath(r.GitDataDir, organization, project, repoName)
 
-	repo, err := NewGitRepo(organization, project, repoName, repoPath)
+	repo, err := NewGitRepo(organization, project, repoName, repoPath, r.Debug)
 	if err != nil {
 		log.Println(err, repoPath)
 		panic(err)
@@ -50,7 +52,8 @@ type GitRepo struct {
 	Repository   string
 	Path         string
 	gitmRepo     *gitm.Repository
-	repo         *git.Repository
+	Debug        bool
+	// repo         *git.Repository
 }
 
 type Source struct {
@@ -59,18 +62,18 @@ type Source struct {
 	Hits    []int  `json:"hits"`
 }
 
-func NewGitRepo(organization string, projectName string, repoName string, repoPath string) (*GitRepo, error) {
+func NewGitRepo(organization string, projectName string, repoName string, repoPath string, debug bool) (*GitRepo, error) {
 	gitmRepo, err := gitm.OpenRepository(repoPath)
 	if err != nil {
 		return nil, err
 	}
 
-	fs := fs.NewOS()
-	r, _ := git.NewRepositoryFromFS(fs, repoPath)
+	// fs := fs.NewOS()
+	// r, _ := git.NewRepositoryFromFS(fs, repoPath)
 
 	// fmt.Println("GitRepo:", repoPath)
 
-	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, repo: r}, nil
+	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, Debug: debug}, nil
 }
 
 func (r *GitRepo) GetBranches() ([]string, error) {
@@ -81,54 +84,63 @@ func (r *GitRepo) GetBranchCommitID(name string) (string, error) {
 	return r.gitmRepo.GetBranchCommitID(name)
 }
 
-func (r *GitRepo) GetCommit(commitId string) (*git.Commit, error) {
-	return r.repo.Commit(core.NewHash(commitId))
+func (r *GitRepo) GetBlobSize(blob string) (int64, error) {
+	s, err := gitm.NewCommand("cat-file", "-s", blob).RunInDir(r.Path)
+	if err != nil {
+		return -1, err
+	}
+	s = strings.TrimRight(s, "\n")
+	return strconv.ParseInt(s, 10, 64)
 }
 
-func (r *GitRepo) GetBlob(blobId string) (*git.Blob, error) {
-	return r.repo.Blob(core.NewHash(blobId))
-}
-
-func (r *GitRepo) Blob(hash core.Hash) (*git.Blob, error) {
-	return r.repo.Blob(hash)
-}
-
-func (r *GitRepo) GetBlobContent(blobId string) ([]byte, error) {
-	blob, err := r.GetBlob(blobId)
+func (r *GitRepo) GetBlobContent(blob string) ([]byte, error) {
+	b, err := gitm.NewCommand("cat-file", "-p", blob).RunInDirBytes(r.Path)
 	if err != nil {
 		return nil, err
 	}
-
-	reader, _ := blob.Reader()
-	defer reader.Close()
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(reader)
-	return buf.Bytes(), nil
+	b = bytes.TrimRight(b, "\n")
+	return b, nil
 }
 
-func (r *GitRepo) DetectBlobContentType(blob *git.Blob) (string, error) {
-	reader, _ := blob.Reader()
+type ContentTypeWriter struct {
+	pos   int
+	bytes [512]byte
+}
 
-	defer reader.Close()
+func (w *ContentTypeWriter) Write(p []byte) (n int, err error) {
+	end := w.pos + len(p)
+	if end > 512 {
+		end = 512
+	}
 
+	copy(w.bytes[w.pos:end], p)
+	w.pos = end
+
+	return len(p), nil
+}
+
+func (r *GitRepo) DetectBlobContentType(blob string) (string, error) {
 	// Only the first 512 bytes are used to sniff the content type.
-	buffer := make([]byte, 512)
-	n, err := reader.Read(buffer)
-	if err != nil && err != io.EOF {
+	stdout := new(ContentTypeWriter)
+	stderr := new(bytes.Buffer)
+	err := gitm.NewCommand("cat-file", "-p", blob).RunInDirPipeline(r.Path, stdout, stderr)
+	if err != nil {
 		return "", err
 	}
 
+	if r.Debug {
+		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
+	}
+
 	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
-	contentType := http.DetectContentType(buffer[:n])
+	contentType := http.DetectContentType(stdout.bytes[:])
 
 	return contentType, nil
 }
 
 func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
-	blob, _ := r.GetBlob(blobId)
-	reader, _ := blob.Reader()
-	defer reader.Close()
+	b, _ := r.GetBlobContent(blobId)
+	reader := strings.NewReader(string(b))
 
 	previews := util.FilterTextPreview(reader, filter, before, after)
 
@@ -142,27 +154,29 @@ type FileEntry struct {
 }
 
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
-	commit, err := r.GetCommit(commitId)
+	// see https://git-scm.com/docs/git-ls-tree
+	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
-
-	tree := commit.Tree()
-	iter := tree.Files()
-	defer iter.Close()
-
+	s = strings.TrimRight(s, "\n")
+	rows := strings.Split(s, "\n")
 	list := []FileEntry{}
 
-	for true {
-		f, err := iter.Next()
-		if err != nil {
-			break
-		}
+	for i := range rows {
+		row := rows[i]
+		columns := strings.Fields(row)
 
-		blob := f.Hash.String()
-		list = append(list, FileEntry{Blob: blob, Path: f.Name, Size: f.Size})
+		blob := columns[2]
+		size, _ := strconv.ParseInt(columns[3], 10, 64)
+
+		path := strings.Split(row, "\t")[1]
+
+		f := FileEntry{Blob: blob, Size: size, Path: path}
+
+		list = append(list, f)
 	}
+
 	return list, nil
 }
 
@@ -233,7 +247,7 @@ func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry,
 	return addList, delList, nil
 }
 
-func getRepoPath(gitDataDir string, organization string, project string, repoName string) string {
-	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", gitDataDir, organization, project, repoName)
+func getRepoPath(GitDataDir string, organization string, project string, repoName string) string {
+	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", GitDataDir, organization, project, repoName)
 	return repoPath
 }

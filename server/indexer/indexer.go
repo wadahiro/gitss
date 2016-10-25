@@ -1,7 +1,6 @@
 package indexer
 
 import (
-	"bytes"
 	"regexp"
 	// "log"
 	"path"
@@ -71,17 +70,17 @@ func getGitRepo(reader *repo.GitRepoReader, s *Source) *repo.GitRepo {
 	return repo
 }
 
-func getFileContent(repo *repo.GitRepo, s *Source) string {
-	blob, _ := repo.GetBlob(s.Blob)
+// func getFileContent(repo *repo.GitRepo, s *Source) string {
+// 	blob, _ := repo.GetBlob(s.Blob)
 
-	r, _ := blob.Reader()
+// 	r, _ := blob.Reader()
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(r)
-	text := buf.String()
+// 	buf := new(bytes.Buffer)
+// 	buf.ReadFrom(r)
+// 	text := buf.String()
 
-	return text
-}
+// 	return text
+// }
 
 func NewFileIndex(blob string, organization string, project string, repo string, ref string, path string, content string) FileIndex {
 	fileIndex := FileIndex{
