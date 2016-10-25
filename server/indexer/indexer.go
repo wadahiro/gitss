@@ -12,7 +12,7 @@ import (
 type Indexer interface {
 	CreateFileIndex(requestFileIndex FileIndex) error
 	UpsertFileIndex(requestFileIndex FileIndex) error
-	BatchFileIndex(requestFileIndex []FileIndex, mode BatchMethod) error
+	BatchFileIndex(operations []FileIndexOperation) error
 
 	SearchQuery(query string) SearchResult
 }
@@ -20,9 +20,14 @@ type Indexer interface {
 type BatchMethod int
 
 const (
-    ADD BatchMethod = iota
-    DELETE
+	ADD BatchMethod = iota
+	DELETE
 )
+
+type FileIndexOperation struct {
+	Method    BatchMethod
+	FileIndex FileIndex
+}
 
 type FileIndex struct {
 	Blob     string     `json:"blob"`

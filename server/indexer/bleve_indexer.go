@@ -17,65 +17,6 @@ import (
 
 var MAPPING = []byte(`{
 	"types": {
-		"latest": {
-			"enabled": true,
-			"dynamic": true,
-			"properties": {
-				"organization": {
-					"enabled": true,
-					"dynamic": true,
-					"fields": [{
-						"type": "text",
-						"analyzer": "en",
-						"store": true,
-						"index": true,
-						"include_term_vectors": true,
-						"include_in_all": false
-					}],
-					"default_analyzer": ""
-				},
-				"project": {
-					"enabled": true,
-					"dynamic": true,
-					"fields": [{
-						"type": "text",
-						"analyzer": "en",
-						"store": true,
-						"index": true,
-						"include_term_vectors": true,
-						"include_in_all": false
-					}],
-					"default_analyzer": ""
-				},
-				"repository": {
-					"enabled": true,
-					"dynamic": true,
-					"fields": [{
-						"type": "text",
-						"analyzer": "en",
-						"store": true,
-						"index": true,
-						"include_term_vectors": true,
-						"include_in_all": false
-					}],
-					"default_analyzer": ""
-				},
-				"ref": {
-					"enabled": true,
-					"dynamic": true,
-					"fields": [{
-						"type": "text",
-						"analyzer": "en",
-						"store": true,
-						"index": true,
-						"include_term_vectors": true,
-						"include_in_all": false
-					}],
-					"default_analyzer": ""
-				}
-			},
-			"default_analyzer": ""
-		},
 		"file": {
 			"enabled": true,
 			"dynamic": true,
@@ -201,7 +142,7 @@ var MAPPING = []byte(`{
 		"default_analyzer": ""
 	},
 	"type_field": "_type",
-	"default_type": "gits",
+	"default_type": "file",
 	"default_analyzer": "standard",
 	"default_datetime_parser": "dateTimeOptional",
 	"default_field": "_all",
@@ -210,7 +151,7 @@ var MAPPING = []byte(`{
 	"analysis": {}
 }`)
 
-var BLEVE_HIT_TAG = regexp.MustCompile(`<mark>(.*)</mark>`)
+var BLEVE_HIT_TAG = regexp.MustCompile(`<mark>(.*?)</mark>`)
 
 type BleveIndexer struct {
 	config config.Config
@@ -256,12 +197,13 @@ func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
-func (b *BleveIndexer) BatchFileIndex(requestFileIndex []FileIndex, batchMethod BatchMethod) error {
+func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	batch := b.client.NewBatch()
-	for i := range requestFileIndex {
-		f := requestFileIndex[i]
+	for i := range requestBatch {
+		op := requestBatch[i]
+		f := op.FileIndex
 
-		switch batchMethod {
+		switch op.Method {
 		case ADD:
 			batch.Index(f.Blob, f)
 		case DELETE:
@@ -384,9 +326,15 @@ func (b *BleveIndexer) search(query string) SearchResult {
 					return true
 				}
 			}
+		if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
+			log.Println(line)
+		}
 			return false
 		}, 3, 3)
 
+		if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
+			log.Printf("frag: %v\n", hit.Fragments)
+		}
 		// log.Println(preview)
 
 		h := Hit{Source: s, Preview: preview}

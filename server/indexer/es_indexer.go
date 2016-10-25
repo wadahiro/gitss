@@ -38,7 +38,7 @@ func NewESIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
 const PRE_TAG = "\u0001"
 const POST_TAG = "\u0001"
 
-var ES_HIT_TAG = regexp.MustCompile(`\x{0001}(.*)\x{0001}`)
+var ES_HIT_TAG = regexp.MustCompile(`\x{0001}(.*?)\x{0001}`)
 
 var CRLF_PATTERN = regexp.MustCompile(`\r?\n|\r`)
 
@@ -192,7 +192,7 @@ func (e *ESIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
-func (e *ESIndexer) BatchFileIndex(fileIndex []FileIndex, batchMethod BatchMethod) error {
+func (e *ESIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 

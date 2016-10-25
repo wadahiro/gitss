@@ -102,40 +102,52 @@ func (r *GitRepo) GetBlobContent(blob string) ([]byte, error) {
 	return b, nil
 }
 
-type ContentTypeWriter struct {
-	pos   int
-	bytes [512]byte
-}
+// type ContentTypeWriter struct {
+// 	pos   int
+// 	bytes [512]byte
+// }
 
-func (w *ContentTypeWriter) Write(p []byte) (n int, err error) {
-	end := w.pos + len(p)
-	if end > 512 {
-		end = 512
-	}
+// func (w *ContentTypeWriter) Write(p []byte) (n int, err error) {
+// 	end := w.pos + len(p)
+// 	if end > 512 {
+// 		end = 512
+// 	}
 
-	copy(w.bytes[w.pos:end], p)
-	w.pos = end
+// 	copy(w.bytes[w.pos:end], p)
+// 	w.pos = end
 
-	return len(p), nil
-}
+// 	return len(p), nil
+// }
 
-func (r *GitRepo) DetectBlobContentType(blob string) (string, error) {
-	// Only the first 512 bytes are used to sniff the content type.
-	stdout := new(ContentTypeWriter)
-	stderr := new(bytes.Buffer)
-	err := gitm.NewCommand("cat-file", "-p", blob).RunInDirPipeline(r.Path, stdout, stderr)
+// func (r *GitRepo) DetectBlobContentType2(blob string) (string, error) {
+// 	// Only the first 512 bytes are used to sniff the content type.
+// 	stdout := new(ContentTypeWriter)
+// 	stderr := new(bytes.Buffer)
+// 	err := gitm.NewCommand("cat-file", "-p", blob).RunInDirPipeline(r.Path, stdout, stderr)
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	if r.Debug {
+// 		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
+// 	}
+
+// 	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
+// 	contentType := http.DetectContentType(stdout.bytes[:])
+
+// 	return contentType, nil
+// }
+
+func (r *GitRepo) DetectBlobContentType(blob string) (string, []byte, error) {
+	b, err := gitm.NewCommand("cat-file", "-p", blob).RunInDirBytes(r.Path)
 	if err != nil {
-		return "", err
-	}
-
-	if r.Debug {
-		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
+		return "", nil, err
 	}
 
 	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
-	contentType := http.DetectContentType(stdout.bytes[:])
+	contentType := http.DetectContentType(b)
 
-	return contentType, nil
+	return contentType, b, nil
 }
 
 func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
@@ -151,6 +163,32 @@ type FileEntry struct {
 	Blob string
 	Path string
 	Size int64
+}
+
+func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntry FileEntry)) error {
+	// see https://git-scm.com/docs/git-ls-tree
+	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
+	if err != nil {
+		return err
+	}
+	s = strings.TrimRight(s, "\n")
+	rows := strings.Split(s, "\n")
+
+	for i := range rows {
+		row := rows[i]
+		columns := strings.Fields(row)
+
+		blob := columns[2]
+		size, _ := strconv.ParseInt(columns[3], 10, 64)
+
+		path := strings.Split(row, "\t")[1]
+
+		f := FileEntry{Blob: blob, Size: size, Path: path}
+
+		callback(f)
+	}
+
+	return nil
 }
 
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
@@ -180,6 +218,76 @@ func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
 	return list, nil
 }
 
+func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(fileEntry FileEntry, status string)) error {
+	// see https://git-scm.com/docs/diff
+	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
+	if err != nil {
+		return err
+	}
+
+	parts := bytes.Split(stdout, []byte{'\u0000'})
+
+	// fmt.Println(len(parts))
+
+	for index := 0; index < len(parts); index++ {
+		row := parts[index]
+		cols := bytes.Fields(row)
+
+		if len(cols) <= 1 {
+			continue
+		}
+
+		// fmt.Println("col", len(cols))
+
+		oldBlob := string(cols[2])
+		newBlob := string(cols[3])
+		status := string(cols[4])[0:1]
+
+		// fmt.Println(string(row))
+		// fmt.Println(oldBlob, newBlob, status)
+
+		// See 'Possible status letters' in https://git-scm.com/docs/git-diff
+		switch status {
+		case "A": // Add case
+			index++
+			path := string(parts[index])
+			callback(FileEntry{Blob: newBlob, Path: path}, "A")
+
+		case "C": // Copy case
+			index = index + 2
+			toPath := string(parts[index])
+			callback(FileEntry{Blob: newBlob, Path: toPath}, "A")
+
+		case "D": // Delete case
+			index++
+			path := string(parts[index])
+			callback(FileEntry{Blob: oldBlob, Path: path}, "D")
+
+		case "M", "T": // Modify case and change in the type of the file case
+			index++
+			if oldBlob != newBlob {
+				path := string(parts[index])
+				callback(FileEntry{Blob: oldBlob, Path: path}, "D")
+				callback(FileEntry{Blob: newBlob, Path: path}, "A")
+			}
+
+		case "R": // Rename case
+			index++
+			fromPath := string(parts[index])
+			index++
+			toPath := string(parts[index])
+			callback(FileEntry{Blob: oldBlob, Path: fromPath}, "D")
+			callback(FileEntry{Blob: newBlob, Path: toPath}, "A")
+
+		case "U": // Unmerge case
+			continue
+		case "X": // Delete case
+			log.Println("unknown change type (most probably a git bug, please report it)")
+		}
+	}
+	return nil
+}
+
 func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry, error) {
 	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
 	if err != nil {
@@ -191,17 +299,24 @@ func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry,
 
 	parts := bytes.Split(stdout, []byte{'\u0000'})
 
+	// fmt.Println(len(parts))
+
 	for index := 0; index < len(parts); index++ {
 		row := parts[index]
-		cols := bytes.Split(row, []byte{' '})
+		cols := bytes.Fields(row)
 
-		if len(cols) <= 6 {
+		if len(cols) <= 1 {
 			continue
 		}
 
+		// fmt.Println("col", len(cols))
+
 		oldBlob := string(cols[2])
-		newBlob := string(cols[2])
+		newBlob := string(cols[3])
 		status := string(cols[4])[0:1]
+
+		// fmt.Println(string(row))
+		// fmt.Println(oldBlob, newBlob, status)
 
 		// See 'Possible status letters' in https://git-scm.com/docs/git-diff
 		switch status {
@@ -220,8 +335,7 @@ func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry,
 			path := string(parts[index])
 			delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
 
-		case "M": // Modify case
-		case "T": // Change in the type of the file case
+		case "M", "T": // Modify case and change in the type of the file case
 			index++
 			if oldBlob != newBlob {
 				path := string(parts[index])
