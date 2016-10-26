@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 	// "strconv"
@@ -187,14 +188,11 @@ func NewBleveIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
 }
 
 func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
-	fillFileExt(&requestFileIndex)
+	return b.create(requestFileIndex, nil)
+}
 
-	err := b.index(requestFileIndex.Blob, &requestFileIndex)
-
-	if err != nil {
-		return err
-	}
-	return nil
+func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
+	return b.upsert(requestFileIndex, nil)
 }
 
 func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
@@ -205,8 +203,9 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 
 		switch op.Method {
 		case ADD:
-			batch.Index(f.Blob, f)
+			b.upsert(f, batch)
 		case DELETE:
+			b.delete(f, batch)
 			batch.Delete(f.Blob)
 		}
 	}
@@ -214,63 +213,145 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 
-func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
+func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
+	b.searchByRefs(organization, project, repository, refs, func(searchResult *bleve.SearchResult) {
+		fmt.Println("Hit! total:", searchResult.Total)
+		batch := b.client.NewBatch()
+
+		for i := range searchResult.Hits {
+			hit := searchResult.Hits[i]
+			doc, err := b.client.Document(hit.ID)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			err = b.deleteByDoc(doc, refs, batch)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+		}
+
+		err := b.client.Batch(batch)
+		if err != nil {
+			fmt.Println(err)
+		}
+	})
+
+	// batch := b.client.NewBatch()
+
+	// b.client.Batch(batch)
+	return nil
+}
+
+func (b *BleveIndexer) create(requestFileIndex FileIndex, batch *bleve.Batch) error {
 	fillFileExt(&requestFileIndex)
 
-	doc, _ := b.client.Document(getDocId(requestFileIndex))
+	err := b._index(&requestFileIndex, batch)
 
-	if doc != nil {
-		// Update
+	if err != nil {
+		log.Println("Create Doc error", err)
+		return err
+	}
+	if b.debug {
+		log.Println("Created index")
+	}
+	return nil
+}
 
-		// Restore fileIndex from index
-		fileIndex := docToFileIndex(doc)
+func (b *BleveIndexer) upsert(requestFileIndex FileIndex, batch *bleve.Batch) error {
+	fillFileExt(&requestFileIndex)
 
-		// Merge ref
-		same := mergeRef(fileIndex, requestFileIndex.Metadata.Refs)
+	doc, _ := b.client.Document(getDocId(&requestFileIndex))
 
-		if same {
-			if b.debug {
-				log.Println("Skipped index")
-			}
-			return nil
-		}
+	// Create case
+	if doc == nil {
+		return b.create(requestFileIndex, batch)
+	}
 
-		err := b.index(requestFileIndex.Blob, fileIndex)
+	// Update case
 
-		if err != nil {
-			log.Println("Upsert Doc error", err)
-			return err
-		}
+	// Restore fileIndex from index
+	fileIndex := docToFileIndex(doc)
+
+	// Merge ref
+	same := mergeRef(fileIndex, requestFileIndex.Metadata.Refs)
+
+	if same {
 		if b.debug {
-			log.Println("Updated index")
+			log.Println("Skipped index")
 		}
+		return nil
+	}
 
-	} else {
-		err := b.index(requestFileIndex.Blob, &requestFileIndex)
+	err := b._index(fileIndex, batch)
 
-		if err != nil {
-			log.Println("Add Doc error", err)
-			return err
-		}
-		if b.debug {
-			log.Println("Added index")
-		}
+	if err != nil {
+		log.Println("Update Doc error", err)
+		return err
+	}
+	if b.debug {
+		log.Println("Updated index")
 	}
 
 	return nil
 }
 
-func (b *BleveIndexer) index(blob string, f *FileIndex) error {
-	var fileDoc interface{}
-	j, _ := json.Marshal(f)
+func (b *BleveIndexer) delete(requestFileIndex FileIndex, batch *bleve.Batch) error {
+	doc, err := b.client.Document(getDocId(&requestFileIndex))
+	if err != nil {
+		return err
+	}
+	return b.deleteByDoc(doc, requestFileIndex.Metadata.Refs, batch)
+}
 
-	// log.Println(string(j))
+func (b *BleveIndexer) deleteByDoc(doc *document.Document, refs []string, batch *bleve.Batch) error {
+	if doc != nil {
+		// Restore fileIndex from index
+		fileIndex := docToFileIndex(doc)
 
-	json.Unmarshal(j, &fileDoc)
+		// Remove ref
+		allRemoved := removeRef(fileIndex, refs)
 
-	// log.Println(f.Content)
+		if allRemoved {
+			err := b._delete(doc.ID, batch)
 
-	return b.client.Index(blob, fileDoc)
+			if err != nil {
+				log.Println("Delete Doc error", err)
+				return err
+			}
+			if b.debug {
+				log.Println("Deleted index")
+			}
+		} else {
+			err := b._index(fileIndex, batch)
+
+			if err != nil {
+				log.Println("Update(for delete) Doc error", err)
+				return err
+			}
+			if b.debug {
+				log.Println("Updated(for delete) index")
+			}
+		}
+	}
+	return nil
+}
+
+func (b *BleveIndexer) _index(f *FileIndex, batch *bleve.Batch) error {
+	if batch == nil {
+		return b.client.Index(getDocId(f), f)
+	} else {
+		return batch.Index(getDocId(f), f)
+	}
+}
+
+func (b *BleveIndexer) _delete(docID string, batch *bleve.Batch) error {
+	if batch == nil {
+		return b.client.Delete(docID)
+	}
+	batch.Delete(docID)
+	return nil
 }
 
 func (b *BleveIndexer) SearchQuery(query string) SearchResult {
@@ -282,12 +363,45 @@ func (b *BleveIndexer) SearchQuery(query string) SearchResult {
 	return result
 }
 
+func (b *BleveIndexer) searchByRefs(organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
+
+	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
+	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
+	rq := bleve.NewQueryStringQuery("metadata.repository:" + repository)
+	q1 := bleve.NewConjunctionQuery(oq, pq, rq)
+
+	q2 := bleve.NewDisjunctionQuery()
+	for _, ref := range refs {
+		rq := bleve.NewQueryStringQuery("metadata.refs:" + ref)
+		q2.AddQuery(rq)
+	}
+	s := bleve.NewSearchRequest(bleve.NewConjunctionQuery(q1, q2))
+	// s.Fields = []string{"blob", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs"}
+	s.From = 0
+	s.Size = 100
+
+	for {
+		searchResult, _ := b.client.Search(s)
+
+		if len(searchResult.Hits) == 0 {
+			// fmt.Println("End", searchResult.Total, s)
+			break
+		}
+
+		callback(searchResult)
+
+		s.From = s.From + len(searchResult.Hits)
+	}
+
+	return nil
+}
+
 func (b *BleveIndexer) search(query string) SearchResult {
 
 	q := bleve.NewWildcardQuery(query)
 	s := bleve.NewSearchRequest(q)
 
-	s.Fields = []string{"blob", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.ref", "metadata.path", "metadata.ext"}
+	s.Fields = []string{"blob", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
 	searchResults, err := b.client.Search(s)
 
@@ -303,13 +417,14 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	for _, hit := range searchResults.Hits {
 		doc, err := b.client.Document(hit.ID)
 		if err != nil {
-			log.Println("Already deleted from index? blob:" + hit.ID)
+			log.Println("Already deleted from index? ID:" + hit.ID)
 			continue
 		}
 
 		fileIndex := docToFileIndex(doc)
+		log.Println(fileIndex.Metadata.Refs)
 
-		s := Source{Blob: hit.ID, Metadata: fileIndex.Metadata}
+		s := Source{Blob: fileIndex.Blob, Metadata: fileIndex.Metadata}
 
 		// find highlighted words
 		hitWordsSet = mergeSet(hitWordsSet, getHitWords(BLEVE_HIT_TAG, hit.Fragments["content"]))
@@ -319,7 +434,7 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		// get the file text
 		gitRepo, err := getGitRepo(b.reader, &s)
 		if err != nil {
-			log.Println("Already deleted from git repository? blob:" + hit.ID)
+			log.Println("Already deleted from git repository? ID:" + hit.ID)
 			continue
 		}
 
@@ -330,15 +445,9 @@ func (b *BleveIndexer) search(query string) SearchResult {
 					return true
 				}
 			}
-			if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
-				log.Println(line)
-			}
 			return false
 		}, 3, 3)
 
-		if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
-			log.Printf("frag: %v\n", hit.Fragments)
-		}
 		// log.Println(preview)
 
 		h := Hit{Source: s, Preview: preview}

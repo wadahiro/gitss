@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/pkg/errors"
+
 	"github.com/codegangsta/cli"
 )
 
@@ -68,8 +70,20 @@ type Ref struct {
 	Latest string `json:"latest"`
 }
 
+func (c *Config) GetRefs(organization string, project string, repository string) ([]Ref, error) {
+	fileName := c.getFileName(organization, project, repository)
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, errors.Errorf("Not found config: %s", fileName) // NotFound
+	}
+	var indexConf IndexConf
+	json.Unmarshal(b, &indexConf)
+
+	return indexConf.Refs, nil
+}
+
 func (c *Config) GetIndexedCommitID(latestIndex LatestIndex) (string, bool) {
-	fileName := c.getFileName(latestIndex)
+	fileName := c.getFileNameByLatestIndex(latestIndex)
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return "", true // NotFound
@@ -88,7 +102,7 @@ func (c *Config) GetIndexedCommitID(latestIndex LatestIndex) (string, bool) {
 }
 
 func (c *Config) UpdateLatestIndex(url string, latestIndex LatestIndex, commitId string) error {
-	fileName := c.getFileName(latestIndex)
+	fileName := c.getFileNameByLatestIndex(latestIndex)
 	b, err := ioutil.ReadFile(fileName)
 
 	var indexConf IndexConf
@@ -129,8 +143,44 @@ func (c *Config) UpdateLatestIndex(url string, latestIndex LatestIndex, commitId
 	return nil
 }
 
+func (c *Config) DeleteLatestIndexRefs(organization string, project string, repository string, refs []string) error {
+	fileName := c.getFileName(organization, project, repository)
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+
+	var indexConf IndexConf
+	// Update latest
+	json.Unmarshal(b, &indexConf)
+
+	newRefs := []Ref{}
+	for i := range indexConf.Refs {
+		ref := indexConf.Refs[i]
+
+		found := false
+		for _, removeRef := range refs {
+			if ref.Name == removeRef {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newRefs = append(newRefs, indexConf.Refs[i])
+		}
+	}
+
+	// Update ref
+	indexConf.Refs = newRefs
+	return c.writeFileByFineName(fileName, indexConf)
+}
+
 func (c *Config) writeFile(latestIndex LatestIndex, indexConf IndexConf) error {
-	fileName := c.getFileName(latestIndex)
+	fileName := c.getFileNameByLatestIndex(latestIndex)
+	return c.writeFileByFineName(fileName, indexConf)
+}
+
+func (c *Config) writeFileByFineName(fileName string, indexConf IndexConf) error {
 	content, _ := json.MarshalIndent(indexConf, "", "  ")
 	return ioutil.WriteFile(fileName, content, os.ModePerm)
 }
@@ -140,7 +190,11 @@ func (c *Config) getDir(latestIndex LatestIndex) string {
 	return dir
 }
 
-func (c *Config) getFileName(latestIndex LatestIndex) string {
-	fileName := fmt.Sprintf("%s/%s/%s/%s.json", c.ConfDir, latestIndex.Organization, latestIndex.Project, latestIndex.Repository)
+func (c *Config) getFileNameByLatestIndex(latestIndex LatestIndex) string {
+	return c.getFileName(latestIndex.Organization, latestIndex.Project, latestIndex.Repository)
+}
+
+func (c *Config) getFileName(organization string, project string, repository string) string {
+	fileName := fmt.Sprintf("%s/%s/%s/%s.json", c.ConfDir, organization, project, repository)
 	return fileName
 }

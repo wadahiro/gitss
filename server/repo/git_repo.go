@@ -35,16 +35,20 @@ func NewGitRepoReader(config config.Config) *GitRepoReader {
 	return reader
 }
 
-func (r *GitRepoReader) CloneGitRepo(organization string, project string, url string) (*GitRepo, error) {
+func GetRepoNameFromUrl(url string) string {
 	splitedUrl := strings.Split(url, "/")
 	repoName := splitedUrl[len(splitedUrl)-1]
 	// Drop ".git" from repoName
 	splitedRepoNames := strings.Split(repoName, ".git")
 	repoName = splitedRepoNames[0]
+	return repoName
+}
 
-	repoPath := getRepoPath(r.GitDataDir, organization, project, repoName)
+func (r *GitRepoReader) CloneGitRepo(organization string, project string, url string) (*GitRepo, error) {
+	repoName := GetRepoNameFromUrl(url)
+	gitRepoPath := getGitRepoPath(r.GitDataDir, organization, project, repoName)
 
-	err := gitm.Clone(url, repoPath,
+	err := gitm.Clone(url, gitRepoPath,
 		gitm.CloneRepoOptions{Mirror: true})
 
 	if err != nil {
@@ -55,9 +59,9 @@ func (r *GitRepoReader) CloneGitRepo(organization string, project string, url st
 }
 
 func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) (*GitRepo, error) {
-	repoPath := getRepoPath(r.GitDataDir, organization, project, repoName)
+	gitRepoPath := getGitRepoPath(r.GitDataDir, organization, project, repoName)
 
-	repo, err := NewGitRepo(organization, project, repoName, repoPath, r.Debug)
+	repo, err := NewGitRepo(organization, project, repoName, gitRepoPath, r.Debug)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +386,7 @@ func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry,
 	return addList, delList, nil
 }
 
-func getRepoPath(GitDataDir string, organization string, project string, repoName string) string {
+func getGitRepoPath(GitDataDir string, organization string, project string, repoName string) string {
 	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", GitDataDir, organization, project, repoName)
 	return repoPath
 }

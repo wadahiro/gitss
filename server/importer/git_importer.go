@@ -33,12 +33,12 @@ func NewGitImporter(config config.Config, indexer indexer.Indexer) *GitImporter 
 	return &GitImporter{config: config, indexer: indexer, reader: r, debug: config.Debug}
 }
 
-func (g *GitImporter) Run(organization string, projectName string, url string) {
-	log.Printf("Clone from %s %s %s\n", organization, projectName, url)
+func (g *GitImporter) Run(organization string, project string, url string) {
+	log.Printf("Clone from %s %s %s\n", organization, project, url)
 
-	repo, err := g.reader.CloneGitRepo(organization, projectName, url)
+	repo, err := g.reader.CloneGitRepo(organization, project, url)
 	if err != nil {
-		log.Printf("Not found the repository: %s %s %s %+v\n", organization, projectName, url, err)
+		log.Printf("Not found the repository: %s %s %s %+v\n", organization, project, url, err)
 		return
 	}
 
@@ -48,9 +48,42 @@ func (g *GitImporter) Run(organization string, projectName string, url string) {
 
 	branches, _ := repo.GetBranches()
 
+	refs, err := g.config.GetRefs(organization, project, repo.Repository)
+
+	log.Printf("Start indexing for %s:%s/%s %v -> %v\n", organization, project, repo.Repository, branches, refs)
+
+	start := time.Now()
+
 	for _, branch := range branches {
 		g.RunIndexing(url, repo, branch)
 	}
+
+	// Remove index for removed branches
+	removeRefs := []string{}
+	for _, ref := range refs {
+		found := false
+		for _, branch := range branches {
+			if ref.Name == branch {
+				found = true
+				break
+			}
+		}
+		if !found {
+			removeRefs = append(removeRefs, ref.Name)
+		}
+	}
+
+	if len(removeRefs) > 0 {
+		log.Printf("Start index deleting for %s:%s/%s %v\n", organization, project, repo.Repository, removeRefs)
+		g.indexer.DeleteIndexByRefs(organization, project, repo.Repository, removeRefs)
+
+		// Save config after deleting index completed
+		g.config.DeleteLatestIndexRefs(organization, project, repo.Repository, removeRefs)
+	}
+
+	end := time.Now()
+	time := (end.Sub(start)).Seconds()
+	log.Printf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository)
 }
 
 func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName string) {
@@ -63,8 +96,6 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 	})
 
 	tag := getLoggingTag(repo, branchName, latestCommitId)
-
-	start := time.Now()
 
 	queue := make(chan indexer.FileIndexOperation, 100)
 
@@ -119,10 +150,6 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 		Repository:   repo.Repository,
 		Ref:          branchName,
 	}, latestCommitId)
-
-	end := time.Now()
-	time := (end.Sub(start)).Seconds()
-	fmt.Printf("Indexing Complete! %s [%f seconds]\n", tag, time)
 }
 
 func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, latestCommitId string) error {

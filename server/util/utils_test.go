@@ -88,3 +88,14 @@ hit
 	}
 
 }
+
+func TestDifferenceStrings(t *testing.T) {
+	result := DifferenceStrings([]string{"a", "b"}, []string{"b", "c"})
+	if len(result) != 1 {
+		t.Errorf("Length != 1, %d\n", len(result))
+	}
+	
+	if result[0] != "a" {
+		t.Errorf("Not \"a\", %s\n", result[0])
+	}
+}

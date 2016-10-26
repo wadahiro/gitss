@@ -105,3 +105,20 @@ func GenWorkers(num int) chan<- func() {
 	}
 	return tasks
 }
+
+func DifferenceStrings(strs []string, excludes []string) []string {
+	newStrs := []string{}
+	for i, str := range strs {
+		found := false
+		for _, exclude := range excludes {
+			if str == exclude {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newStrs = append(newStrs, strs[i])
+		}
+	}
+	return newStrs
+}

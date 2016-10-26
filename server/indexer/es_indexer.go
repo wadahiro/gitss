@@ -196,6 +196,10 @@ func (e *ESIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 
+func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
+	return nil
+}
+
 func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 	fillFileExt(&requestFileIndex)
 

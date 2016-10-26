@@ -14,6 +14,7 @@ type Indexer interface {
 	CreateFileIndex(requestFileIndex FileIndex) error
 	UpsertFileIndex(requestFileIndex FileIndex) error
 	BatchFileIndex(operations []FileIndexOperation) error
+	DeleteIndexByRefs(organization string, project string, repository string, refs []string) error
 
 	SearchQuery(query string) SearchResult
 }
@@ -96,13 +97,13 @@ func fillFileExt(fileIndex *FileIndex) {
 	fileIndex.Metadata.Ext = ext
 }
 
-func find(refs []string, f func(ref string, i int) bool) string {
+func find(refs []string, f func(ref string, i int) bool) (string, bool) {
 	for index, x := range refs {
 		if f(x, index) == true {
-			return x
+			return x, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
@@ -115,29 +116,54 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func getDocId(fileIndex FileIndex) string {
+func getDocId(fileIndex *FileIndex) string {
 	return fmt.Sprintf("%s:%s:%s:%s:%s", fileIndex.Metadata.Organization, fileIndex.Metadata.Project, fileIndex.Metadata.Repository, fileIndex.Blob, fileIndex.Metadata.Path)
 }
 
 func mergeRef(fileIndex *FileIndex, refs []string) bool {
-	addRef := []string{}
+	addRefs := []string{}
+	currentRefs := fileIndex.Metadata.Refs
 
 	for i := range refs {
-		found := find(fileIndex.Metadata.Refs, func(x string, j int) bool {
+		_, found := find(currentRefs, func(x string, j int) bool {
 			return refs[i] == x
 		})
-		if found == "" {
-			addRef = append(addRef, refs[i])
+		if !found {
+			addRefs = append(addRefs, refs[i])
 		}
 	}
 
 	// Same case
-	if len(addRef) == 0 {
+	if len(addRefs) == 0 {
 		return true
 	}
 
 	// Add case
-	fileIndex.Metadata.Refs = append(fileIndex.Metadata.Refs, addRef...)
+	fileIndex.Metadata.Refs = append(fileIndex.Metadata.Refs, addRefs...)
+
+	return false
+}
+
+func removeRef(fileIndex *FileIndex, refs []string) bool {
+	newRefs := []string{}
+	currentRefs := fileIndex.Metadata.Refs
+
+	for i := range currentRefs {
+		_, found := find(refs, func(x string, j int) bool {
+			return currentRefs[i] == x
+		})
+		if !found {
+			newRefs = append(newRefs, currentRefs[i])
+		}
+	}
+
+	// All delete case
+	if len(newRefs) == 0 {
+		return true
+	}
+
+	// Update case
+	fileIndex.Metadata.Refs = newRefs
 
 	return false
 }
