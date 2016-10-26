@@ -22,10 +22,11 @@
 
 ### Setup
 
-1. Install [gom](https://github.com/mattn/gom).
+1. Install [gom](https://github.com/mattn/gom), [fresh](https://github.com/pilu/fresh).
 
 ```bash
 go get github.com/mattn/gom
+go get github.com/pilu/fresh
 ```
 
 2. Install Golang dependencies.
