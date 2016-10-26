@@ -35,15 +35,33 @@ func NewGitRepoReader(config config.Config) *GitRepoReader {
 	return reader
 }
 
-func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) *GitRepo {
+func (r *GitRepoReader) CloneGitRepo(organization string, project string, url string) (*GitRepo, error) {
+	splitedUrl := strings.Split(url, "/")
+	repoName := splitedUrl[len(splitedUrl)-1]
+	// Drop ".git" from repoName
+	splitedRepoNames := strings.Split(repoName, ".git")
+	repoName = splitedRepoNames[0]
+
+	repoPath := getRepoPath(r.GitDataDir, organization, project, repoName)
+
+	err := gitm.Clone(url, repoPath,
+		gitm.CloneRepoOptions{Mirror: true})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return r.GetGitRepo(organization, project, repoName)
+}
+
+func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) (*GitRepo, error) {
 	repoPath := getRepoPath(r.GitDataDir, organization, project, repoName)
 
 	repo, err := NewGitRepo(organization, project, repoName, repoPath, r.Debug)
 	if err != nil {
-		log.Println(err, repoPath)
-		panic(err)
+		return nil, err
 	}
-	return repo
+	return repo, nil
 }
 
 type GitRepo struct {
@@ -53,7 +71,6 @@ type GitRepo struct {
 	Path         string
 	gitmRepo     *gitm.Repository
 	Debug        bool
-	// repo         *git.Repository
 }
 
 type Source struct {
@@ -68,12 +85,16 @@ func NewGitRepo(organization string, projectName string, repoName string, repoPa
 		return nil, err
 	}
 
-	// fs := fs.NewOS()
-	// r, _ := git.NewRepositoryFromFS(fs, repoPath)
-
-	// fmt.Println("GitRepo:", repoPath)
-
 	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, Debug: debug}, nil
+}
+
+func (r *GitRepo) FetchAll() error {
+	cmd := gitm.NewCommand("fetch")
+	cmd.AddArguments("--all")
+	cmd.AddArguments("--prune")
+
+	_, err := cmd.RunInDirTimeout(-1, r.Path)
+	return err
 }
 
 func (r *GitRepo) GetBranches() ([]string, error) {

@@ -297,10 +297,14 @@ func (e *ESIndexer) search(query string) SearchResult {
 			// find highlighted words
 			hitWordsSet = mergeSet(hitWordsSet, getHitWords(ES_HIT_TAG, hit.Highlight["content"]))
 
-			log.Println("hitWords", hitWordsSet)
+			// log.Println("hitWords", hitWordsSet)
 
 			// get the file text
-			gitRepo := getGitRepo(e.reader, &s)
+			gitRepo, err := getGitRepo(e.reader, &s)
+			if err != nil {
+				log.Println("Already deleted from git repository? blob:" + hit.Id)
+				continue
+			}
 
 			// make preview
 			preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
@@ -313,7 +317,7 @@ func (e *ESIndexer) search(query string) SearchResult {
 				return false
 			}, 3, 3)
 
-			log.Println(preview)
+			// log.Println(preview)
 
 			// hsList := []HighlightSource{}
 

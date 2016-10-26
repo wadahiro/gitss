@@ -303,7 +303,7 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	for _, hit := range searchResults.Hits {
 		doc, err := b.client.Document(hit.ID)
 		if err != nil {
-			log.Println("Already deleted? blob:" + hit.ID)
+			log.Println("Already deleted from index? blob:" + hit.ID)
 			continue
 		}
 
@@ -317,7 +317,11 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		// log.Println("hitWords", hitWordsSet)?
 
 		// get the file text
-		gitRepo := getGitRepo(b.reader, &s)
+		gitRepo, err := getGitRepo(b.reader, &s)
+		if err != nil {
+			log.Println("Already deleted from git repository? blob:" + hit.ID)
+			continue
+		}
 
 		// make preview
 		preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {

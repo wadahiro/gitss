@@ -24,38 +24,27 @@ import (
 type GitImporter struct {
 	config  config.Config
 	indexer indexer.Indexer
+	reader  *repo.GitRepoReader
 	debug   bool
 }
 
 func NewGitImporter(config config.Config, indexer indexer.Indexer) *GitImporter {
-	return &GitImporter{config: config, indexer: indexer, debug: config.Debug}
+	r := repo.NewGitRepoReader(config)
+	return &GitImporter{config: config, indexer: indexer, reader: r, debug: config.Debug}
 }
 
 func (g *GitImporter) Run(organization string, projectName string, url string) {
 	log.Printf("Clone from %s %s %s\n", organization, projectName, url)
 
-	splitedUrl := strings.Split(url, "/")
-	repoName := splitedUrl[len(splitedUrl)-1]
-	// Drop ".git" from repoName
-	splitedRepoNames := strings.Split(repoName, ".git")
-	repoName = splitedRepoNames[0]
-
-	repoPath := fmt.Sprintf("%s/%s/%s/%s.git", g.config.GitDataDir, organization, projectName, repoName)
-
-	if err := gitm.Clone(url, repoPath,
-		gitm.CloneRepoOptions{Mirror: true}); err != nil {
-
-		// panic(err)
-	}
-
-	log.Println("Fetch...")
-	FetchAll(repoPath)
-	// git.Pull(repoPath, git.PullRemoteOptions{All: true})
-
-	repo, err := repo.NewGitRepo(organization, projectName, repoName, repoPath, g.debug)
+	repo, err := g.reader.CloneGitRepo(organization, projectName, url)
 	if err != nil {
-		panic(err)
+		log.Printf("Not found the repository: %s %s %s %+v\n", organization, projectName, url, err)
+		return
 	}
+
+	repo.FetchAll()
+
+	log.Println("Fetched all.")
 
 	branches, _ := repo.GetBranches()
 
@@ -263,7 +252,7 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 			}
 		})
 		if err != nil {
-			log.Printf("NotFound diff: %s..%s, %+v", fromCommitId, toCommitId, err)
+			log.Printf("NotFound diff: %s..%s %+v", fromCommitId, toCommitId, err)
 		}
 	}()
 
@@ -273,13 +262,6 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 	}()
 
 	return nil
-}
-
-func (g *GitImporter) checkFileSize(fileEntry repo.FileEntry) bool {
-	if fileEntry.Size > g.config.SizeLimit {
-		return false
-	}
-	return true
 }
 
 func (g *GitImporter) checkContentType(repo *repo.GitRepo, fileEntry repo.FileEntry) (bool, string) {
@@ -300,20 +282,6 @@ func (g *GitImporter) checkContentType(repo *repo.GitRepo, fileEntry repo.FileEn
 func getLoggingTag(repo *repo.GitRepo, branchName string, commitId string) string {
 	tag := fmt.Sprintf("@%s %s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
 	return tag
-}
-
-func (g *GitImporter) CreateFileIndex(organization string, project string, repo string, branch string, filePath string, blob string, content string) {
-	fileIndex := indexer.NewFileIndex(blob, organization, project, repo, branch, filePath, content)
-	g.indexer.UpsertFileIndex(fileIndex)
-}
-
-func FetchAll(repoPath string) error {
-	cmd := gitm.NewCommand("fetch")
-	cmd.AddArguments("--all")
-	cmd.AddArguments("--prune")
-
-	_, err := cmd.RunInDirTimeout(-1, repoPath)
-	return err
 }
 
 func ContainsBranch(repoPath string, commitId string) ([]string, error) {

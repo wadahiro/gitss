@@ -70,22 +70,10 @@ type HighlightSource struct {
 	Content string `json:"content"`
 }
 
-func getGitRepo(reader *repo.GitRepoReader, s *Source) *repo.GitRepo {
-	repo := reader.GetGitRepo(s.Metadata[0].Organization, s.Metadata[0].Project, s.Metadata[0].Repository)
-	return repo
+func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {
+	repo, err := reader.GetGitRepo(s.Metadata[0].Organization, s.Metadata[0].Project, s.Metadata[0].Repository)
+	return repo, err
 }
-
-// func getFileContent(repo *repo.GitRepo, s *Source) string {
-// 	blob, _ := repo.GetBlob(s.Blob)
-
-// 	r, _ := blob.Reader()
-
-// 	buf := new(bytes.Buffer)
-// 	buf.ReadFrom(r)
-// 	text := buf.String()
-
-// 	return text
-// }
 
 func NewFileIndex(blob string, organization string, project string, repo string, ref string, path string, content string) FileIndex {
 	fileIndex := FileIndex{
