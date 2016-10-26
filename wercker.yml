@@ -42,6 +42,9 @@ build:
     - script:
         name: install golang dependencies
         code: |
+          ls -al vendor
+          gom install
+          ls -al vendor
           gom install
           ls -al vendor
     - script:
