@@ -136,10 +136,10 @@ func (esi *ESIndexer) Init() {
 								}
 							}
 						},
-						ref: {
+						refs: {
 							type: "multi_field",
 							fields: {
-								ref: {
+								refs: {
 									type: "string",
 									index: "analyzed"
 								},
@@ -211,7 +211,7 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 			return err
 		}
 
-		same := mergeFileIndex(&fileIndex, requestFileIndex.Metadata)
+		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Refs)
 
 		if same {
 			if e.debug {

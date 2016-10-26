@@ -11,6 +11,7 @@ import (
 	"github.com/wadahiro/gitss/server/importer"
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
+	"github.com/wadahiro/gitss/server/service"
 )
 
 var CommitHash = "WORKSPACE" // inject by LDFLAGS build option
@@ -74,7 +75,7 @@ func RunServer(c *cli.Context) {
 
 	config := config.NewConfig(c, debugMode)
 
-	log.Println("-------------- GitS Server --------------")
+	log.Println("-------------- GitSS --------------------")
 	log.Println("VERSION: ", Version)
 	log.Println("COMMIT_HASH: ", CommitHash)
 	log.Println("DATA_DIR: ", config.DataDir)
@@ -88,8 +89,9 @@ func RunServer(c *cli.Context) {
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
 	initRouter(config, indexer)
+	service.RunSyncScheduler(reader)
 
-	log.Println("Started GitS Server.")
+	log.Println("Started GitSS.")
 }
 
 func ImportGitRepository(c *cli.Context) {
@@ -105,7 +107,7 @@ func ImportGitRepository(c *cli.Context) {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
-	log.Println("-------------- GitS Import Git Repository --------------")
+	log.Println("-------------- GitSS Import Git Repository -------------")
 	log.Println("VERSION: ", Version)
 	log.Println("COMMIT_HASH: ", CommitHash)
 	log.Println("DATA_DIR: ", config.DataDir)

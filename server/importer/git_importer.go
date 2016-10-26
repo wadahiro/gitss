@@ -154,15 +154,13 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 				fileIndex := indexer.FileIndex{
 					Blob:    fileEntry.Blob,
 					Content: content,
-					Metadata: []indexer.Metadata{
-						indexer.Metadata{
-							Organization: r.Organization,
-							Project:      r.Project,
-							Repository:   r.Repository,
-							Ref:          branchName,
-							Path:         fileEntry.Path,
-							Ext:          path.Ext(fileEntry.Path),
-						},
+					Metadata: indexer.Metadata{
+						Organization: r.Organization,
+						Project:      r.Project,
+						Repository:   r.Repository,
+						Refs:         []string{branchName},
+						Path:         fileEntry.Path,
+						Ext:          path.Ext(fileEntry.Path),
 					},
 				}
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
@@ -218,15 +216,13 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 					fileIndex := indexer.FileIndex{
 						Blob:    fileEntry.Blob,
 						Content: content,
-						Metadata: []indexer.Metadata{
-							indexer.Metadata{
-								Organization: r.Organization,
-								Project:      r.Project,
-								Repository:   r.Repository,
-								Ref:          branchName,
-								Path:         fileEntry.Path,
-								Ext:          path.Ext(fileEntry.Path),
-							},
+						Metadata: indexer.Metadata{
+							Organization: r.Organization,
+							Project:      r.Project,
+							Repository:   r.Repository,
+							Refs:         []string{branchName},
+							Path:         fileEntry.Path,
+							Ext:          path.Ext(fileEntry.Path),
 						},
 					}
 					// Add index
@@ -235,15 +231,13 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 				} else {
 					fileIndex := indexer.FileIndex{
 						Blob: fileEntry.Blob,
-						Metadata: []indexer.Metadata{
-							indexer.Metadata{
-								Organization: r.Organization,
-								Project:      r.Project,
-								Repository:   r.Repository,
-								Ref:          branchName,
-								Path:         fileEntry.Path,
-								Ext:          path.Ext(fileEntry.Path),
-							},
+						Metadata: indexer.Metadata{
+							Organization: r.Organization,
+							Project:      r.Project,
+							Repository:   r.Repository,
+							Refs:         []string{branchName},
+							Path:         fileEntry.Path,
+							Ext:          path.Ext(fileEntry.Path),
 						},
 					}
 					// Delete index

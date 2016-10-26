@@ -45,14 +45,14 @@ export interface Preview {
 export interface Source {
     blob: string;
     content: string;
-    metadata: FileMetadata[];
+    metadata: FileMetadata;
 }
 
 export interface FileMetadata {
     organization: string;
     project: string;
     repository: string;
-    ref: string;
+    refs: string[];
     path: string;
     ext: string;
 }

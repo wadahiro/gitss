@@ -3,6 +3,7 @@ package indexer
 import (
 	"regexp"
 	// "log"
+	"fmt"
 	"path"
 
 	"github.com/wadahiro/gitss/server/repo"
@@ -30,18 +31,18 @@ type FileIndexOperation struct {
 }
 
 type FileIndex struct {
-	Blob     string     `json:"blob"`
-	Metadata []Metadata `json:"metadata"`
-	Content  string     `json:"content"`
+	Blob     string   `json:"blob"`
+	Metadata Metadata `json:"metadata"`
+	Content  string   `json:"content"`
 }
 
 type Metadata struct {
-	Organization string `json:"organization"`
-	Project      string `json:"project"`
-	Repository   string `json:"repository"`
-	Ref          string `json:"ref"`
-	Path         string `json:"path"`
-	Ext          string `json:"ext"`
+	Organization string   `json:"organization"`
+	Project      string   `json:"project"`
+	Repository   string   `json:"repository"`
+	Refs         []string `json:"refs"`
+	Path         string   `json:"path"`
+	Ext          string   `json:"ext"`
 }
 
 type SearchResult struct {
@@ -61,8 +62,8 @@ type Hit struct {
 }
 
 type Source struct {
-	Blob     string     `json:"blob"`
-	Metadata []Metadata `json:"metadata"`
+	Blob     string   `json:"blob"`
+	Metadata Metadata `json:"metadata"`
 }
 
 type HighlightSource struct {
@@ -71,7 +72,7 @@ type HighlightSource struct {
 }
 
 func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {
-	repo, err := reader.GetGitRepo(s.Metadata[0].Organization, s.Metadata[0].Project, s.Metadata[0].Repository)
+	repo, err := reader.GetGitRepo(s.Metadata.Organization, s.Metadata.Project, s.Metadata.Repository)
 	return repo, err
 }
 
@@ -79,33 +80,29 @@ func NewFileIndex(blob string, organization string, project string, repo string,
 	fileIndex := FileIndex{
 		Blob:    blob,
 		Content: content,
-		Metadata: []Metadata{
-			Metadata{
-				Organization: organization,
-				Project:      project,
-				Repository:   repo,
-				Ref:          ref,
-				Path:         path,
-			},
+		Metadata: Metadata{
+			Organization: organization,
+			Project:      project,
+			Repository:   repo,
+			Refs:         []string{ref},
+			Path:         path,
 		},
 	}
 	return fileIndex
 }
 
 func fillFileExt(fileIndex *FileIndex) {
-	for i := range fileIndex.Metadata {
-		ext := path.Ext(fileIndex.Metadata[i].Path)
-		fileIndex.Metadata[i].Ext = ext
-	}
+	ext := path.Ext(fileIndex.Metadata.Path)
+	fileIndex.Metadata.Ext = ext
 }
 
-func find(mList []Metadata, f func(m Metadata, i int) bool) *Metadata {
-	for index, x := range mList {
+func find(refs []string, f func(ref string, i int) bool) string {
+	for index, x := range refs {
 		if f(x, index) == true {
-			return &x
+			return x
 		}
 	}
-	return nil
+	return ""
 }
 
 func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
@@ -118,31 +115,29 @@ func filter(f func(s Metadata, i int) bool, s []Metadata) []Metadata {
 	return ans
 }
 
-func mergeFileIndex(fileIndex *FileIndex, metadata []Metadata) bool {
-	addMetadata := []Metadata{}
+func getDocId(fileIndex FileIndex) string {
+	return fmt.Sprintf("%s:%s:%s:%s:%s", fileIndex.Metadata.Organization, fileIndex.Metadata.Project, fileIndex.Metadata.Repository, fileIndex.Blob, fileIndex.Metadata.Path)
+}
 
-	for i := range metadata {
-		m := metadata[i]
+func mergeRef(fileIndex *FileIndex, refs []string) bool {
+	addRef := []string{}
 
-		found := find(fileIndex.Metadata, func(n Metadata, j int) bool {
-			return m.Organization == n.Organization &&
-				m.Project == n.Project &&
-				m.Repository == n.Repository &&
-				m.Ref == n.Ref &&
-				m.Path == n.Path
+	for i := range refs {
+		found := find(fileIndex.Metadata.Refs, func(x string, j int) bool {
+			return refs[i] == x
 		})
-		if found == nil {
-			addMetadata = append(addMetadata, m)
+		if found == "" {
+			addRef = append(addRef, refs[i])
 		}
 	}
 
-	// Same metadata case
-	if len(addMetadata) == 0 {
+	// Same case
+	if len(addRef) == 0 {
 		return true
 	}
 
-	// Add metadata case
-	fileIndex.Metadata = append(fileIndex.Metadata, addMetadata...)
+	// Add case
+	fileIndex.Metadata.Refs = append(fileIndex.Metadata.Refs, addRef...)
 
 	return false
 }

@@ -51,32 +51,6 @@ var MAPPING = []byte(`{
 					"enabled": true,
 					"dynamic": true,
 					"properties": {
-						"path": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "en",
-								"store": true,
-								"index": true,
-								"include_term_vectors": true,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"ext": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "en",
-								"store": true,
-								"index": true,
-								"include_term_vectors": true,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
 						"organization": {
 							"enabled": true,
 							"dynamic": true,
@@ -116,7 +90,33 @@ var MAPPING = []byte(`{
 							}],
 							"default_analyzer": ""
 						},
-						"ref": {
+						"refs": {
+							"enabled": true,
+							"dynamic": true,
+							"fields": [{
+								"type": "text",
+								"analyzer": "en",
+								"store": true,
+								"index": true,
+								"include_term_vectors": true,
+								"include_in_all": false
+							}],
+							"default_analyzer": ""
+						},
+						"path": {
+							"enabled": true,
+							"dynamic": true,
+							"fields": [{
+								"type": "text",
+								"analyzer": "en",
+								"store": true,
+								"index": true,
+								"include_term_vectors": true,
+								"include_in_all": false
+							}],
+							"default_analyzer": ""
+						},
+						"ext": {
 							"enabled": true,
 							"dynamic": true,
 							"fields": [{
@@ -217,7 +217,7 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 	fillFileExt(&requestFileIndex)
 
-	doc, _ := b.client.Document(requestFileIndex.Blob)
+	doc, _ := b.client.Document(getDocId(requestFileIndex))
 
 	if doc != nil {
 		// Update
@@ -225,8 +225,8 @@ func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 		// Restore fileIndex from index
 		fileIndex := docToFileIndex(doc)
 
-		// Merge metadata
-		same := mergeFileIndex(fileIndex, requestFileIndex.Metadata)
+		// Merge ref
+		same := mergeRef(fileIndex, requestFileIndex.Metadata.Refs)
 
 		if same {
 			if b.debug {
@@ -330,9 +330,9 @@ func (b *BleveIndexer) search(query string) SearchResult {
 					return true
 				}
 			}
-		if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
-			log.Println(line)
-		}
+			if s.Blob == "703fc636aaab83abf749c3bfb80affe185c846ff" {
+				log.Println(line)
+			}
 			return false
 		}, 3, 3)
 
@@ -350,7 +350,7 @@ func (b *BleveIndexer) search(query string) SearchResult {
 
 func docToFileIndex(doc *document.Document) *FileIndex {
 	var fileIndex FileIndex
-	metadataMap := map[uint64]*Metadata{}
+	refsMap := map[uint64]string{}
 
 	for i := range doc.Fields {
 		f := doc.Fields[i]
@@ -365,35 +365,33 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 			fileIndex.Content = value
 
 		case "metadata":
-			pos := f.ArrayPositions()[0]
-			_, ok := metadataMap[pos]
-			if !ok {
-				metadataMap[pos] = &Metadata{}
-			}
-			m := metadataMap[pos]
 			switch name[1] {
 			case "organization":
-				m.Organization = value
+				fileIndex.Metadata.Organization = value
 			case "project":
-				m.Project = value
+				fileIndex.Metadata.Project = value
 			case "repository":
-				m.Repository = value
-			case "ref":
-				m.Ref = value
+				fileIndex.Metadata.Repository = value
+			case "refs":
+				pos := f.ArrayPositions()[0]
+				_, ok := refsMap[pos]
+				if !ok {
+					refsMap[pos] = value
+				}
 			case "path":
-				m.Path = value
+				fileIndex.Metadata.Path = value
 			case "ext":
-				m.Ext = value
+				fileIndex.Metadata.Ext = value
 			}
 		}
 	}
 
-	metadatas := make([]Metadata, len(metadataMap))
-	for k, v := range metadataMap {
-		metadatas[k] = *v
+	refs := make([]string, len(refsMap))
+	for k, v := range refsMap {
+		refs[k] = v
 	}
 	// Restored!
-	fileIndex.Metadata = metadatas
+	fileIndex.Metadata.Refs = refs
 
 	return &fileIndex
 }

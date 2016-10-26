@@ -8,7 +8,7 @@ import { FileMetadata, Preview } from '../reducers';
 const CRLF = /\r\n|\r|\n/g;
 
 interface Props {
-    metadata: FileMetadata[];
+    metadata: FileMetadata;
     preview: Preview[];
 }
 
@@ -99,29 +99,29 @@ export class FileContent extends React.Component<Props, State>{
                 margin: 4,
             },
             wrapper: {
-                display: 'flex',
-                flexWrap: 'wrap',
+                float: 'right'
             },
         };
         return (
             <div>
                 <div style={styles.wrapper}>
-                    {metadata.map(x => {
+                    {metadata.refs.map(x => {
                         return (
                             <Chip
-                                key={`${x.project}_${x.repository}_${x.ref}_${x.path}`}
+                                key={x}
                                 backgroundColor={indigo50}
                                 style={styles.chip}
                                 >
-                                {`@${x.organization}:${x.project}/${x.repository} (${x.ref}) - ${x.path}`}
+                                {x}
                             </Chip>
                         );
                     })}
                 </div>
+                <h4>{`${metadata.organization}:${metadata.project}/${metadata.repository} – ${metadata.path}`}</h4>
                 {preview.map((pre, i) => {
                     return (
                         <div key={pre.offset}>
-                            {this.highlight(pre.offset, pre.hits, pre.preview, metadata[0].ext)}
+                            {this.highlight(pre.offset, pre.hits, pre.preview, metadata.ext)}
                         </div>
                     );
                 })}
