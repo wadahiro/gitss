@@ -215,7 +215,6 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 
 func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
 	b.searchByRefs(organization, project, repository, refs, func(searchResult *bleve.SearchResult) {
-		fmt.Println("Hit! total:", searchResult.Total)
 		batch := b.client.NewBatch()
 
 		for i := range searchResult.Hits {
@@ -238,9 +237,6 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 		}
 	})
 
-	// batch := b.client.NewBatch()
-
-	// b.client.Batch(batch)
 	return nil
 }
 
@@ -364,7 +360,6 @@ func (b *BleveIndexer) SearchQuery(query string) SearchResult {
 }
 
 func (b *BleveIndexer) searchByRefs(organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
-
 	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
 	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
 	rq := bleve.NewQueryStringQuery("metadata.repository:" + repository)
@@ -376,23 +371,62 @@ func (b *BleveIndexer) searchByRefs(organization string, project string, reposit
 		q2.AddQuery(rq)
 	}
 	s := bleve.NewSearchRequest(bleve.NewConjunctionQuery(q1, q2))
-	// s.Fields = []string{"blob", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs"}
 	s.From = 0
 	s.Size = 100
 
+	return b.handleSearch(s, callback)
+}
+
+func (b *BleveIndexer) searchByOrganization(organization string, callback func(searchResult *bleve.SearchResult)) error {
+	q := bleve.NewQueryStringQuery("metadata.organization:" + organization)
+
+	s := bleve.NewSearchRequest(q)
+	s.From = 0
+	s.Size = 100
+
+	return b.handleSearch(s, callback)
+}
+
+func (b *BleveIndexer) searchByProject(organization string, project string, callback func(searchResult *bleve.SearchResult)) error {
+	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
+	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
+	q := bleve.NewConjunctionQuery(oq, pq)
+
+	s := bleve.NewSearchRequest(q)
+	s.From = 0
+	s.Size = 100
+
+	return b.handleSearch(s, callback)
+}
+
+func (b *BleveIndexer) searchByRepository(organization string, project string, repository string, callback func(searchResult *bleve.SearchResult)) error {
+	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
+	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
+	rq := bleve.NewQueryStringQuery("metadata.repository:" + repository)
+	q := bleve.NewConjunctionQuery(oq, pq, rq)
+
+	s := bleve.NewSearchRequest(q)
+	s.From = 0
+	s.Size = 100
+
+	return b.handleSearch(s, callback)
+}
+
+func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback func(searchResult *bleve.SearchResult)) error {
 	for {
-		searchResult, _ := b.client.Search(s)
+		searchResult, err := b.client.Search(searchRequest)
+		if err != nil {
+			return err
+		}
 
 		if len(searchResult.Hits) == 0 {
-			// fmt.Println("End", searchResult.Total, s)
 			break
 		}
 
 		callback(searchResult)
 
-		s.From = s.From + len(searchResult.Hits)
+		searchRequest.From = searchRequest.From + len(searchResult.Hits)
 	}
-
 	return nil
 }
 
