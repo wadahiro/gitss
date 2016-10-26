@@ -98,11 +98,10 @@ func RunServer(c *cli.Context) {
 
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
-	initRouter(config, indexer)
 	importer := importer.NewGitImporter(config, indexer)
 	service.RunSyncScheduler(config, importer)
 
-	log.Println("Started GitSS.")
+	initRouter(config, indexer)
 }
 
 func SyncAll(c *cli.Context) {

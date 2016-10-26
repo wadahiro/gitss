@@ -20,7 +20,7 @@ func RunSyncScheduler(config config.Config, importer *importer.GitImporter) {
 	defer mutex.Unlock()
 
 	if scheduler != nil {
-		log.Println("Stop sync schduler...")
+		log.Println("Stop sync schduler.")
 		scheduler.Stop()
 	}
 	scheduler = cron.New()
@@ -39,7 +39,7 @@ func RunSyncScheduler(config config.Config, importer *importer.GitImporter) {
 	scheduler.AddFunc(spec, job)
 
 	scheduler.Start()
-	fmt.Println("Started sync schduler...")
+	fmt.Println("Started sync schduler.")
 }
 
 func RunSync(config config.Config, importer *importer.GitImporter) {

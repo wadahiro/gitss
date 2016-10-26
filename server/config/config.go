@@ -74,7 +74,6 @@ func (c *Config) GetAllIndexConf() ([]IndexConfWrapper, error) {
 		if err != nil {
 			return err
 		}
-		log.Println(path)
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
 			paths := strings.Split(path, string(os.PathSeparator))
 			if len(paths) < 3 {

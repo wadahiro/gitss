@@ -456,7 +456,6 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		}
 
 		fileIndex := docToFileIndex(doc)
-		log.Println(fileIndex.Metadata.Refs)
 
 		s := Source{Blob: fileIndex.Blob, Metadata: fileIndex.Metadata}
 
