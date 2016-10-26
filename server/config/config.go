@@ -6,6 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	// "path"
+	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -19,6 +22,7 @@ type Config struct {
 	Port        int
 	IndexerType string
 	SizeLimit   int64
+	Schedule    string
 	Debug       bool
 }
 
@@ -39,6 +43,8 @@ func NewConfig(c *cli.Context, debug bool) Config {
 
 	sizeLimit := c.Int64("sizeLimit")
 
+	schedule := c.GlobalString("schedule")
+
 	config := Config{
 		DataDir:     dataDir,
 		GitDataDir:  gitDataDir,
@@ -46,6 +52,7 @@ func NewConfig(c *cli.Context, debug bool) Config {
 		Port:        port,
 		IndexerType: indexerType,
 		SizeLimit:   sizeLimit,
+		Schedule:    schedule,
 		Debug:       debug,
 	}
 
@@ -58,6 +65,50 @@ func (c *Config) init() {
 	if err := os.MkdirAll(c.GitDataDir, 0644); err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func (c *Config) GetAllIndexConf() ([]IndexConfWrapper, error) {
+	list := []IndexConfWrapper{}
+
+	err := filepath.Walk(c.ConfDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		log.Println(path)
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
+			paths := strings.Split(path, string(os.PathSeparator))
+			if len(paths) < 3 {
+				return nil
+			}
+
+			organization := paths[len(paths)-3]
+			project := paths[len(paths)-2]
+			repository := strings.Split(info.Name(), ".json")[0]
+
+			b, err := ioutil.ReadFile(path)
+			if err != nil {
+				return errors.Errorf("Not found config: %s", path) // NotFound
+			}
+			var indexConf IndexConfWrapper
+			json.Unmarshal(b, &indexConf)
+
+			indexConf.Organization = organization
+			indexConf.Project = project
+			indexConf.Repository = repository
+
+			list = append(list, indexConf)
+		}
+		return nil
+	})
+
+	return list, err
+}
+
+type IndexConfWrapper struct {
+	IndexConf
+	Organization string
+	Project      string
+	Repository   string
 }
 
 type IndexConf struct {

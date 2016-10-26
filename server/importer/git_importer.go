@@ -44,7 +44,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	repo.FetchAll()
 
-	log.Println("Fetched all.")
+	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
 	branches, _ := repo.GetBranches()
 
@@ -96,6 +96,11 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 	})
 
 	tag := getLoggingTag(repo, branchName, latestCommitId)
+
+	if latestCommitId == indexedCommitId {
+		log.Printf("Already up-to-date. %s", tag)
+		return
+	}
 
 	queue := make(chan indexer.FileIndexOperation, 100)
 
@@ -301,7 +306,7 @@ func (g *GitImporter) checkContentType(repo *repo.GitRepo, fileEntry repo.FileEn
 }
 
 func getLoggingTag(repo *repo.GitRepo, branchName string, commitId string) string {
-	tag := fmt.Sprintf("@%s %s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
+	tag := fmt.Sprintf("%s:%s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
 	return tag
 }
 

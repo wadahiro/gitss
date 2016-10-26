@@ -37,6 +37,12 @@ func main() {
 			Action: RunServer,
 		},
 		{
+			Name:      "sync",
+			Usage:     "Sync all git repositories",
+			ArgsUsage: "",
+			Action:    SyncAll,
+		},
+		{
 			Name:      "import",
 			Usage:     "Import a Git repository",
 			ArgsUsage: "[project name] [git repository url]",
@@ -66,6 +72,11 @@ func main() {
 			Value: "bleve",
 			Usage: "Indexer implementation",
 		},
+		cli.StringFlag{
+			Name:  "schedule",
+			Value: "0 */1 * * * *",
+			Usage: "Sync schedule",
+		},
 	}
 	app.Run(args)
 }
@@ -81,17 +92,28 @@ func RunServer(c *cli.Context) {
 	log.Println("DATA_DIR: ", config.DataDir)
 	log.Println("INDEXER_TYPE: ", config.IndexerType)
 	log.Println("PORT: ", strconv.Itoa(config.Port))
+	log.Println("SCHEDULE: ", config.Schedule)
 	log.Println("DEBUG_MODE: ", debugMode)
 	log.Println("-----------------------------------------")
-
-	// service.RunSyncScheduler(repo)
 
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
 	initRouter(config, indexer)
-	service.RunSyncScheduler(reader)
+	importer := importer.NewGitImporter(config, indexer)
+	service.RunSyncScheduler(config, importer)
 
 	log.Println("Started GitSS.")
+}
+
+func SyncAll(c *cli.Context) {
+	debugMode := isDebugMode()
+
+	config := config.NewConfig(c, debugMode)
+	reader := repo.NewGitRepoReader(config)
+	indexer := newIndexer(config, reader)
+	importer := importer.NewGitImporter(config, indexer)
+
+	service.RunSync(config, importer)
 }
 
 func ImportGitRepository(c *cli.Context) {
