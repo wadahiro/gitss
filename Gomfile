@@ -1,4 +1,4 @@
-gom 'github.com/go-errors/errors'
+gom 'github.com/pkg/errors'
 gom 'github.com/nu7hatch/gouuid'
 gom 'github.com/gin-gonic/contrib/renders/multitemplate'
 gom 'github.com/gin-gonic/contrib/static'
