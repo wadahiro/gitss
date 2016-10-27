@@ -9,7 +9,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bcampbell/qs"
 	"github.com/blevesearch/bleve"
+	_ "github.com/blevesearch/bleve/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/wadahiro/gitss/server/config"
@@ -27,7 +29,20 @@ var MAPPING = []byte(`{
 					"dynamic": true,
 					"fields": [{
 						"type": "text",
-						"analyzer": "en",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"fullRefs": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "full_ref",
 						"store": true,
 						"index": true,
 						"include_term_vectors": true,
@@ -57,10 +72,10 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "keyword",
 								"store": true,
 								"index": true,
-								"include_term_vectors": true,
+								"include_term_vectors": false,
 								"include_in_all": false
 							}],
 							"default_analyzer": ""
@@ -70,10 +85,10 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "keyword",
 								"store": true,
 								"index": true,
-								"include_term_vectors": true,
+								"include_term_vectors": false,
 								"include_in_all": false
 							}],
 							"default_analyzer": ""
@@ -83,10 +98,10 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "keyword",
 								"store": true,
 								"index": true,
-								"include_term_vectors": true,
+								"include_term_vectors": false,
 								"include_in_all": false
 							}],
 							"default_analyzer": ""
@@ -96,10 +111,10 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "keyword",
 								"store": true,
 								"index": true,
-								"include_term_vectors": true,
+								"include_term_vectors": false,
 								"include_in_all": false
 							}],
 							"default_analyzer": ""
@@ -109,7 +124,7 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "path_hierarchy",
 								"store": true,
 								"index": true,
 								"include_term_vectors": true,
@@ -122,7 +137,7 @@ var MAPPING = []byte(`{
 							"dynamic": true,
 							"fields": [{
 								"type": "text",
-								"analyzer": "en",
+								"analyzer": "keyword",
 								"store": true,
 								"index": true,
 								"include_term_vectors": true,
@@ -241,7 +256,7 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 }
 
 func (b *BleveIndexer) create(requestFileIndex FileIndex, batch *bleve.Batch) error {
-	fillFileExt(&requestFileIndex)
+	fillFileIndex(&requestFileIndex)
 
 	err := b._index(&requestFileIndex, batch)
 
@@ -256,7 +271,7 @@ func (b *BleveIndexer) create(requestFileIndex FileIndex, batch *bleve.Batch) er
 }
 
 func (b *BleveIndexer) upsert(requestFileIndex FileIndex, batch *bleve.Batch) error {
-	fillFileExt(&requestFileIndex)
+	fillFileIndex(&requestFileIndex)
 
 	doc, _ := b.client.Document(getDocId(&requestFileIndex))
 
@@ -431,11 +446,23 @@ func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback
 }
 
 func (b *BleveIndexer) search(query string) SearchResult {
+	p := qs.Parser{DefaultOp: qs.AND}
+	q, err := p.Parse(query)
 
-	q := bleve.NewWildcardQuery(query)
+	if err != nil {
+		log.Printf("Query parse error. %+v", err)
+		return SearchResult{}
+	}
+
 	s := bleve.NewSearchRequest(q)
 
-	s.Fields = []string{"blob", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
+	//
+	// organizationFacet := bleve.NewFacetRequest("metadata.organization", 5)
+	// s.AddFacet("organization", organizationFacet)
+	refsFacet := bleve.NewFacetRequest("fullRefs", 100)
+	s.AddFacet("fullRefs", refsFacet)
+
+	s.Fields = []string{"blob", "fullRefs", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
 	searchResults, err := b.client.Search(s)
 
@@ -447,6 +474,8 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	hitWordsSet := make(map[string]struct{})
 
 	// log.Println(searchResults)
+	// facets := searchResults.Facets
+	// fmt.Printf("facets: %s\n", string(j))
 
 	for _, hit := range searchResults.Hits {
 		doc, err := b.client.Document(hit.ID)
@@ -486,12 +515,30 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		h := Hit{Source: s, Preview: preview}
 		list = append(list, h)
 	}
+
+	facets := FacetResults{}
+
+	for k, v := range searchResults.Facets {
+		tf := TermFacets{}
+		for _, term := range v.Terms {
+			tf = append(tf, TermFacet{Term: term.Term, Count: term.Count})
+		}
+		facets[k] = FacetResult{
+			Field:   v.Field,
+			Missing: v.Missing,
+			Other:   v.Other,
+			Terms:   tf,
+			Total:   v.Total,
+		}
+	}
+
 	// log.Println(searchResults.Total)
-	return SearchResult{Hits: list, Size: int64(searchResults.Total)}
+	return SearchResult{Hits: list, Size: int64(searchResults.Total), Facets: facets}
 }
 
 func docToFileIndex(doc *document.Document) *FileIndex {
 	var fileIndex FileIndex
+	fullRefsMap := map[uint64]string{}
 	refsMap := map[uint64]string{}
 
 	for i := range doc.Fields {
@@ -502,6 +549,13 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 		switch name[0] {
 		case "blob":
 			fileIndex.Blob = value
+
+		case "fullRefs":
+			pos := f.ArrayPositions()[0]
+			_, ok := fullRefsMap[pos]
+			if !ok {
+				fullRefsMap[pos] = value
+			}
 
 		case "content":
 			fileIndex.Content = value
@@ -527,6 +581,13 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 			}
 		}
 	}
+
+	fullRefs := make([]string, len(fullRefsMap))
+	for k, v := range fullRefsMap {
+		fullRefs[k] = v
+	}
+	// Restored!
+	fileIndex.FullRefs = fullRefs
 
 	refs := make([]string, len(refsMap))
 	for k, v := range refsMap {

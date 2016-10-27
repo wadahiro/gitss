@@ -33,6 +33,7 @@ type FileIndexOperation struct {
 
 type FileIndex struct {
 	Blob     string   `json:"blob"`
+	FullRefs []string `json:"fullRefs"`
 	Metadata Metadata `json:"metadata"`
 	Content  string   `json:"content"`
 }
@@ -47,13 +48,14 @@ type Metadata struct {
 }
 
 type SearchResult struct {
-	Time       float64 `json:"time"`
-	Size       int64   `json:"size"`
-	Limit      int     `json:"limit"`
-	isLastPage bool    `json:"isLastPage"`
-	Current    int     `json:"current"`
-	Next       int     `json:"next"`
-	Hits       []Hit   `json:"hits"`
+	Time       float64      `json:"time"`
+	Size       int64        `json:"size"`
+	Limit      int          `json:"limit"`
+	isLastPage bool         `json:"isLastPage"`
+	Current    int          `json:"current"`
+	Next       int          `json:"next"`
+	Hits       []Hit        `json:"hits"`
+	Facets     FacetResults `json:"facets"`
 }
 
 type Hit struct {
@@ -70,6 +72,23 @@ type Source struct {
 type HighlightSource struct {
 	Offset  int    `json:"offset"`
 	Content string `json:"content"`
+}
+
+type FacetResults map[string]FacetResult
+
+type FacetResult struct {
+	Field   string     `json:"field"`
+	Total   int        `json:"total"`
+	Missing int        `json:"missing"`
+	Other   int        `json:"other"`
+	Terms   TermFacets `json:"terms,omitempty"`
+}
+
+type TermFacets []TermFacet
+
+type TermFacet struct {
+	Term  string `json:"term"`
+	Count int    `json:"count"`
 }
 
 func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {
@@ -92,9 +111,17 @@ func NewFileIndex(blob string, organization string, project string, repo string,
 	return fileIndex
 }
 
-func fillFileExt(fileIndex *FileIndex) {
+func fillFileIndex(fileIndex *FileIndex) {
+	// ext
 	ext := path.Ext(fileIndex.Metadata.Path)
 	fileIndex.Metadata.Ext = ext
+
+	// full_refs
+	fullRefs := make([]string, 0, len(fileIndex.Metadata.Refs))
+	for _, ref := range fileIndex.Metadata.Refs {
+		fullRefs = append(fullRefs, fileIndex.Metadata.Organization+":"+fileIndex.Metadata.Project+"/"+fileIndex.Metadata.Repository+":"+ref)
+	}
+	fileIndex.FullRefs = fullRefs
 }
 
 func find(refs []string, f func(ref string, i int) bool) (string, bool) {
@@ -138,8 +165,15 @@ func mergeRef(fileIndex *FileIndex, refs []string) bool {
 		return true
 	}
 
+	addFullRefs := make([]string, 0, len(addRefs))
+	for _, ref := range addRefs {
+		fullRef := fileIndex.Metadata.Organization + ":" + fileIndex.Metadata.Project + "/" + fileIndex.Metadata.Repository + ":" + ref
+		addFullRefs = append(addFullRefs, fullRef)
+	}
+
 	// Add case
 	fileIndex.Metadata.Refs = append(fileIndex.Metadata.Refs, addRefs...)
+	fileIndex.FullRefs = append(fileIndex.FullRefs, addFullRefs...)
 
 	return false
 }

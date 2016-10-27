@@ -176,7 +176,7 @@ func (esi *ESIndexer) Init() {
 }
 
 func (e *ESIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
-	fillFileExt(&requestFileIndex)
+	fillFileIndex(&requestFileIndex)
 
 	_, err := e.client.Index().
 		Index("gosource").
@@ -201,7 +201,7 @@ func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repos
 }
 
 func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
-	fillFileExt(&requestFileIndex)
+	fillFileIndex(&requestFileIndex)
 
 	get, err := e.client.Get().
 		Index("gosource").
