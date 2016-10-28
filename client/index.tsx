@@ -6,6 +6,12 @@ import { match, RouterContext } from 'react-router'
 
 import { run, renderToString } from './app/router';
 
+require('font-awesome/css/font-awesome.css');
+const insertCss = require('insert-css');
+const css = require('re-bulma/build/css');
+
+insertCss(css, { prepend: true });
+
 // export main function for server side rendering
 global['main'] = renderToString;
 

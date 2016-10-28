@@ -1686,6 +1686,12 @@ fbjs@0.1.0-alpha.10:
     promise "^7.0.3"
     whatwg-fetch "^0.9.0"
 
+file-loader:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/file-loader/-/file-loader-0.9.0.tgz#1d2daddd424ce6d1b07cfe3f79731bed3617ab42"
+  dependencies:
+    loader-utils "~0.2.5"
+
 filename-regex@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/filename-regex/-/filename-regex-2.0.0.tgz#996e3e80479b98b9897f15a8a58b3d084e926775"
@@ -1730,6 +1736,10 @@ find-up@^1.0.0:
 flatten@^1.0.2, flatten@1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/flatten/-/flatten-1.0.2.tgz#dae46a9d78fbe25292258cc1e780a41d95c03782"
+
+font-awesome@^4.3.0:
+  version "4.7.0"
+  resolved "https://registry.yarnpkg.com/font-awesome/-/font-awesome-4.7.0.tgz#8fa8cf0411a1a31afd07b06d2902bb9fc815a133"
 
 for-in@^0.1.5:
   version "0.1.6"
@@ -2140,6 +2150,10 @@ inline-style-prefixer@^2.0.1, inline-style-prefixer@^2.0.4:
     bowser "^1.0.0"
     hyphenate-style-name "^1.0.1"
 
+insert-css@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/insert-css/-/insert-css-0.2.0.tgz#d15789971662d9899c28977fb6220d5381d2451a"
+
 interpret@^1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/interpret/-/interpret-1.0.1.tgz#d579fb7f693b858004947af39fa0db49f795602c"
@@ -2490,7 +2504,7 @@ loader-runner@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/loader-runner/-/loader-runner-2.2.0.tgz#824c1b699c4e7a2b6501b85902d5b862bf45b3fa"
 
-loader-utils@^0.2.11, loader-utils@^0.2.6, loader-utils@^0.2.7, loader-utils@~0.2.2, loader-utils@0.2.x:
+loader-utils@^0.2.11, loader-utils@^0.2.6, loader-utils@^0.2.7, loader-utils@~0.2.2, loader-utils@~0.2.5, loader-utils@0.2.x:
   version "0.2.16"
   resolved "https://registry.yarnpkg.com/loader-utils/-/loader-utils-0.2.16.tgz#f08632066ed8282835dff88dfb52704765adee6d"
   dependencies:
@@ -3581,6 +3595,12 @@ rc@^1.0.1, rc@^1.1.5, rc@^1.1.6, rc@~1.1.0:
     minimist "^1.2.0"
     strip-json-comments "~1.0.4"
 
+re-bulma:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/re-bulma/-/re-bulma-0.2.1.tgz#8f6ae9cbdcf1ca5c6b19babcf7ca023e2a9eaaea"
+  dependencies:
+    insert-css "^0.2.0"
+
 react-addons-create-fragment@^15.2.1:
   version "15.3.2"
   resolved "https://registry.yarnpkg.com/react-addons-create-fragment/-/react-addons-create-fragment-15.3.2.tgz#0e589c8c7add0e5db5db48367b5167cbed9c5852"
@@ -3609,6 +3629,12 @@ react-event-listener@^0.2.1:
   resolved "https://registry.yarnpkg.com/react-event-listener/-/react-event-listener-0.2.1.tgz#9fc2e17aac264d5c9fc21cc78d5fa02e969914f3"
   dependencies:
     fbjs "^0.8.0"
+
+react-fa:
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/react-fa/-/react-fa-4.1.2.tgz#5d828916da05efc1ed58c97531f36120146f1f16"
+  dependencies:
+    font-awesome "^4.3.0"
 
 react-helmet@^3.1.0:
   version "3.1.0"

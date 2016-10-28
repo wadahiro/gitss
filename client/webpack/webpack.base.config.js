@@ -25,29 +25,17 @@ module.exports = {
   },
   module: {
     loaders: [
-      // {
-      //   test: /\.woff(\?v=\d+\.\d+\.\d+)?$/,
-      //   loader: "url-loader?mimetype=application/font-woff"
-      // },
-      // {
-      //   test: /\.woff2(\?v=\d+\.\d+\.\d+)?$/,
-      //   loader: "url-loader?mimetype=application/font-woff"
-      // },
-      // {
-      //   test: /\.ttf(\?v=\d+\.\d+\.\d+)?$/,
-      //   loader: "url-loader?mimetype=application/font-woff"
-      // },
-      // {
-      //   test: /\.eot(\?v=\d+\.\d+\.\d+)?$/,
-      //   loader: "url-loader?mimetype=application/font-woff"
-      // },
-      // {
-      //   test: /\.svg(\?v=\d+\.\d+\.\d+)?$/,
-      //   loader: "url-loader?mimetype=image/svg+xml"
-      // },
+      {
+        test: /\.woff(2)?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
+        loader: 'url-loader?limit=10000&mimetype=application/font-woff'
+      },
+      {
+        test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
+        loader: 'file-loader'
+      },
       {
         test: /\.css$/,
-        loader: 'style-loader!css-loader?modules',
+        loader: 'style-loader!css-loader',
       },
       {
         test: /\.js(x?)$/,

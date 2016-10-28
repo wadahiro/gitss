@@ -2,10 +2,6 @@ import * as React from 'react';
 import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
-import TextField from 'material-ui/TextField';
-import Divider from 'material-ui/Divider';
-import RaisedButton from 'material-ui/RaisedButton';
-
 import { Grid, Row, Col } from '../components/Grid';
 import { FileContent } from '../components/FileContent';
 import { RootState, SearchResult } from '../reducers';
@@ -21,9 +17,9 @@ class SearchView extends React.Component<Props, void> {
     render() {
         const { loading, result } = this.props;
         return (
-            <div>
+            <Grid>
                 <Row>
-                    <Col xs={12}>
+                    <Col size='is12'>
                         {loading ?
                             <h4><MDSpinner /></h4>
                             :
@@ -31,17 +27,17 @@ class SearchView extends React.Component<Props, void> {
                         }
                     </Col>
                 </Row>
-                <Divider />
+                <hr />
                 {result.hits.map(x => {
                     return (
                         <Row key={x._source.blob}>
-                            <Col xs={12}>
+                            <Col size='is12'>
                                 <FileContent metadata={x._source.metadata} preview={x.preview} />
                             </Col>
                         </Row>
                     );
                 })}
-            </div>
+            </Grid>
         );
     }
 }

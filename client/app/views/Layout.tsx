@@ -4,7 +4,7 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
 import { NavBar } from '../components/NavBar';
-import { Grid, Row, Col } from '../components/Grid';
+import { Container, Grid, Row, Col } from '../components/Grid';
 import { RootState } from '../reducers';
 import * as Actions from '../actions';
 
@@ -26,13 +26,13 @@ class Layout extends React.Component<Props, void> {
         return (
             <div>
                 <NavBar onKeyDown={this.handleKeyDown} />
-                <Grid style={{marginTop: 40}}>
+                <Container style={{marginTop: 60}}>
                     <Row>
-                        <Col xs={12}>
+                        <Col size='is12'>
                             {this.props.children}
                         </Col>
                     </Row>
-                </Grid>
+                </Container>
             </div>
         );
     }

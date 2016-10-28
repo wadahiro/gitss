@@ -12,24 +12,6 @@ require('redux-undo');
 require('whatwg-fetch');
 require('babel-polyfill');
 
-require('react-tap-event-plugin');
-require('material-ui/styles/MuiThemeProvider');
-require('material-ui/styles/getMuiTheme');
-require('material-ui/AppBar');
-require('material-ui/Drawer');
-require('material-ui/IconButton');
-require('material-ui/Divider');
-require('material-ui/Paper');
-require('material-ui/Table');
-require('material-ui/FlatButton');
-require('material-ui/RaisedButton');
-require('material-ui/Dialog');
-require('material-ui/Card');
-require('material-ui/MenuItem');
-require('material-ui/TextField');
-require('material-ui/DatePicker');
-require('material-ui/svg-icons/file/file-download');
-
 // for dev
 if (process.env.NODE_ENV !== 'production') {
     require('webpack-dev-server/client');

@@ -1,16 +1,20 @@
 import * as React from 'react';
 
-// const style = require('./style.css');
-// const F = require('reflexbox');
+const BContainer = require('re-bulma/lib/layout/container').default;
+const Columns = require('re-bulma/lib/grid/columns').default;
+const Column = require('re-bulma/lib/grid/column').default;
 
-const style = {
-    grid: "grid",
-    row: "row"
+export function Container(props) {
+    return (
+        <BContainer {...props}>
+            {props.children}
+        </BContainer>
+    );
 }
 
 export function Grid(props) {
     return (
-        <div className='container' {...props}>
+        <div {...props}>
             {props.children}
         </div>
     );
@@ -18,16 +22,16 @@ export function Grid(props) {
 
 export function Row(props) {
     return (
-        <div className='row' {...props}>
+        <Columns {...props}>
             {props.children}
-        </div>
+        </Columns>
     );
 }
 
 export function Col(props) {
     return (
-        <div className={`col-${props.xs}`}>
+        <Column>
             {props.children}
-        </div>
+        </Column>
     );
 }

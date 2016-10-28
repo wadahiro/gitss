@@ -1,7 +1,6 @@
 import * as React from 'react';
 
-import Chip from 'material-ui/Chip';
-import { indigo50 } from 'material-ui/styles/colors';
+const Tag = require('re-bulma/lib/elements/tag').default;
 
 import { FileMetadata, Preview } from '../reducers';
 
@@ -95,9 +94,6 @@ export class FileContent extends React.Component<Props, State>{
         });
 
         const styles = {
-            chip: {
-                margin: 4,
-            },
             wrapper: {
                 float: 'right'
             },
@@ -107,13 +103,7 @@ export class FileContent extends React.Component<Props, State>{
                 <div style={styles.wrapper}>
                     {metadata.refs.map(x => {
                         return (
-                            <Chip
-                                key={x}
-                                backgroundColor={indigo50}
-                                style={styles.chip}
-                                >
-                                {x}
-                            </Chip>
+                            <Tag key={x}>{x}</Tag>
                         );
                     })}
                 </div>
