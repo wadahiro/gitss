@@ -1,0 +1,1 @@
+export type Size = 'isSmall' | 'isMedium' | 'isLarge';

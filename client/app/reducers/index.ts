@@ -32,6 +32,7 @@ export interface SearchResult {
     next: number;
     isLastPage: boolean;
     hits: Hit[];
+    facets: Facets;
 }
 export interface Hit {
     _source: Source;
@@ -57,6 +58,23 @@ export interface FileMetadata {
     ext: string;
 }
 
+export interface Facets {
+    [index: string]: Facet;
+}
+
+export interface Facet {
+    field: string;
+    missing: number;
+    other: number;
+    total: number;
+    terms: Term[];
+}
+
+export interface Term {
+    term: string;
+    count: number;
+}
+
 function init(): AppState {
     return {
         loading: false,
@@ -67,7 +85,8 @@ function init(): AppState {
             current: 0,
             next: 0,
             isLastPage: true,
-            hits: []
+            hits: [],
+            facets: {}
         }
     };
 }

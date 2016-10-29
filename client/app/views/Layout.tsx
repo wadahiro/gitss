@@ -26,7 +26,7 @@ class Layout extends React.Component<Props, void> {
         return (
             <div>
                 <NavBar onKeyDown={this.handleKeyDown} />
-                <Container style={{marginTop: 60}}>
+                <Container style={{marginTop: 80}}>
                     <Row>
                         <Col size='is12'>
                             {this.props.children}
