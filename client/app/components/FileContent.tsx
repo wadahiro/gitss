@@ -1,7 +1,6 @@
 import * as React from 'react';
 
-const Tag = require('re-bulma/lib/elements/tag').default;
-
+import { Tag } from './Tag';
 import { FileMetadata, Preview } from '../reducers';
 
 const CRLF = /\r\n|\r|\n/g;
