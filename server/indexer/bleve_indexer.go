@@ -14,6 +14,7 @@ import (
 	_ "github.com/blevesearch/bleve/analysis/analyzer/keyword"
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/blevesearch/bleve/search"
 	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/repo"
 )
@@ -474,7 +475,8 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	hitWordsSet := make(map[string]struct{})
 
 	// log.Println(searchResults)
-	// facets := searchResults.Facets
+	// f := searchResults.Facets
+	// j, _ := json.MarshalIndent(f, "", "  ")
 	// fmt.Printf("facets: %s\n", string(j))
 
 	for _, hit := range searchResults.Hits {
@@ -532,8 +534,107 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		}
 	}
 
+	// fullRefs
+	fullRefsFacet := facetResultToFullRefsFacet(searchResults.Facets["fullRefs"])
+
 	// log.Println(searchResults.Total)
-	return SearchResult{Hits: list, Size: int64(searchResults.Total), Facets: facets}
+	return SearchResult{Hits: list, Size: int64(searchResults.Total), Facets: facets, FullRefsFacet: fullRefsFacet}
+}
+
+func facetResultToFullRefsFacet(facetResult *search.FacetResult) []OrganizationFacet {
+	organizationsMap := make(map[string]*OrganizationFacet)
+	projectsMap := make(map[string]*ProjectFacet)
+	repositoriesMap := make(map[string]*RepositoryFacet)
+	refsMap := make(map[string]*RefFacet)
+
+	for i := range facetResult.Terms {
+		termFacet := facetResult.Terms[i]
+
+		if ok, organization := isOrganization(termFacet.Term); ok {
+			organizationsMap[termFacet.Term] = &OrganizationFacet{Term: organization, Count: termFacet.Count}
+		}
+		if ok, project := isProject(termFacet.Term); ok {
+			projectsMap[termFacet.Term] = &ProjectFacet{Term: project, Count: termFacet.Count}
+			// if !ok {
+			// 	list = &[]ProjectFacet{}
+			// 	projectsMap[parent] = list
+			// }
+			// *list = append(*list, ProjectFacet{Term: project, Count: termFacet.Count})
+		}
+		if ok, repository := isRepository(termFacet.Term); ok {
+			repositoriesMap[termFacet.Term] = &RepositoryFacet{Term: repository, Count: termFacet.Count}
+			// list, ok := repositoriesMap[parent]
+			// if !ok {
+			// 	list = &[]RepositoryFacet{}
+			// 	repositoriesMap[parent] = list
+			// }
+			// *list = append(*list, RepositoryFacet{Term: repository, Count: termFacet.Count})
+		}
+		if ok, ref := isRef(termFacet.Term); ok {
+			refsMap[termFacet.Term] = &RefFacet{Term: ref, Count: termFacet.Count}
+			// list, ok := refsMap[parent]
+			// if !ok {
+			// 	list = &[]RefFacet{}
+			// 	refsMap[parent] = list
+			// }
+			// *list = append(*list, RefFacet{Term: ref, Count: termFacet.Count})
+		}
+	}
+
+	for k, ref := range refsMap {
+		parent := repositoriesMap[k[0:strings.LastIndex(k, ":")]]
+		parent.Refs = append(parent.Refs, *ref)
+	}
+
+	for k, repository := range repositoriesMap {
+		parent := projectsMap[strings.Split(k, "/")[0]]
+		parent.Repositories = append(parent.Repositories, *repository)
+	}
+
+	for k, project := range projectsMap {
+		parent := organizationsMap[strings.Split(k, ":")[0]]
+		parent.Projects = append(parent.Projects, *project)
+	}
+
+	organizations := []OrganizationFacet{}
+
+	for _, organization := range organizationsMap {
+		organizations = append(organizations, *organization)
+	}
+
+	return organizations
+}
+
+func isOrganization(path string) (bool, string) {
+	if !strings.Contains(path, ":") {
+		return true, path
+	} else {
+		return false, ""
+	}
+}
+
+func isProject(path string) (bool, string) {
+	if strings.Contains(path, ":") && !strings.Contains(path, "/") {
+		return true, strings.Split(path, ":")[1]
+	} else {
+		return false, ""
+	}
+}
+
+func isRepository(path string) (bool, string) {
+	if strings.Count(path, ":") == 1 && strings.Contains(path, "/") {
+		return true, strings.Split(path, "/")[1]
+	} else {
+		return false, ""
+	}
+}
+
+func isRef(path string) (bool, string) {
+	if strings.Count(path, ":") == 2 && strings.Contains(path, "/") {
+		return true, path[strings.LastIndex(path, ":")+1:]
+	} else {
+		return false, ""
+	}
 }
 
 func docToFileIndex(doc *document.Document) *FileIndex {

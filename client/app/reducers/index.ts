@@ -33,6 +33,7 @@ export interface SearchResult {
     isLastPage: boolean;
     hits: Hit[];
     facets: Facets;
+    fullRefsFacet: OranizationFacet[];
 }
 export interface Hit {
     _source: Source;
@@ -75,6 +76,30 @@ export interface Term {
     count: number;
 }
 
+export interface OranizationFacet {
+    term: string;
+    count: number;
+    projects: ProjectFacet[];
+}
+
+export interface ProjectFacet {
+    term: string;
+    count: number;
+    repositories: RepositoryFace[];
+}
+
+export interface RepositoryFace {
+    term: string;
+    count: number;
+    refs: RefFacets[];
+}
+
+export interface RefFacets {
+    term: string;
+    count: number;
+}
+
+
 function init(): AppState {
     return {
         loading: false,
@@ -86,7 +111,8 @@ function init(): AppState {
             next: 0,
             isLastPage: true,
             hits: [],
-            facets: {}
+            facets: {},
+            fullRefsFacet: []
         }
     };
 }
@@ -112,3 +138,4 @@ export default combineReducers({
         filter: includeAction(['ADD_ITEM', 'DELETE_ITEM', 'MOD_QUANTITY', 'MOD_EXCHANGE_RATE', 'MOD_METADATA', 'RESTORE_SAVED_HISTORY'])
     }),
 });
+

@@ -48,14 +48,35 @@ type Metadata struct {
 }
 
 type SearchResult struct {
-	Time       float64      `json:"time"`
-	Size       int64        `json:"size"`
-	Limit      int          `json:"limit"`
-	isLastPage bool         `json:"isLastPage"`
-	Current    int          `json:"current"`
-	Next       int          `json:"next"`
-	Hits       []Hit        `json:"hits"`
-	Facets     FacetResults `json:"facets"`
+	Time          float64             `json:"time"`
+	Size          int64               `json:"size"`
+	Limit         int                 `json:"limit"`
+	isLastPage    bool                `json:"isLastPage"`
+	Current       int                 `json:"current"`
+	Next          int                 `json:"next"`
+	Hits          []Hit               `json:"hits"`
+	FullRefsFacet []OrganizationFacet `json:"fullRefsFacet"`
+	Facets        FacetResults        `json:"facets"`
+}
+
+type OrganizationFacet struct {
+	Term     string         `json:"term"`
+	Count    int            `json:"count"`
+	Projects []ProjectFacet `json:"projects"`
+}
+type ProjectFacet struct {
+	Term         string            `json:"term"`
+	Count        int               `json:"count"`
+	Repositories []RepositoryFacet `json:"repositories"`
+}
+type RepositoryFacet struct {
+	Term  string     `json:"term"`
+	Count int        `json:"count"`
+	Refs  []RefFacet `json:"refs"`
+}
+type RefFacet struct {
+	Term  string `json:"term"`
+	Count int    `json:"count"`
 }
 
 type Hit struct {
