@@ -9,7 +9,7 @@ const BMenuLabel = require('re-bulma/lib/components/menu/menu-label').default;
 const BMenuList = require('re-bulma/lib/components/menu/menu-list').default;
 const BMenuLink = require('re-bulma/lib/components/menu/menu-link').default;
 
-interface MenuProps extends React.DOMAttributes {
+interface MenuProps extends React.HTMLAttributes {
 }
 
 export function Menu(props: MenuProps) {
@@ -24,7 +24,7 @@ export function MenuList(props: MenuProps) {
     return <BMenuList {...props}>{props.children}</BMenuList>;
 }
 
-interface MenuLinkProps extends React.DOMAttributes {
+interface MenuLinkProps extends React.HTMLAttributes {
     count?: number;
     isActive?: boolean;
 }

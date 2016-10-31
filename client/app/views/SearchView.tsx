@@ -3,6 +3,7 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
 import { Grid, Row, Col } from '../components/Grid';
+import { ExtFacet } from '../components/ExtFacet';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
 import { FileContent } from '../components/FileContent';
@@ -22,6 +23,8 @@ class SearchView extends React.Component<Props, void> {
             <Grid>
                 <Row>
                     <Col size='is3'>
+                        <ExtFacet facet={result.facets['ext']}>
+                        </ExtFacet>
                         <FullRefsFacet facets={result.fullRefsFacet}>
                         </FullRefsFacet>
                     </Col>

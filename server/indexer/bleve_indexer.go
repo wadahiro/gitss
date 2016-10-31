@@ -461,7 +461,9 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	// organizationFacet := bleve.NewFacetRequest("metadata.organization", 5)
 	// s.AddFacet("organization", organizationFacet)
 	refsFacet := bleve.NewFacetRequest("fullRefs", 100)
+	extFacet := bleve.NewFacetRequest("metadata.ext", 100)
 	s.AddFacet("fullRefs", refsFacet)
+	s.AddFacet("ext", extFacet)
 
 	s.Fields = []string{"blob", "fullRefs", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
