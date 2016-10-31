@@ -1,12 +1,8 @@
 import * as React from 'react';
 
 import { Tag } from './Tag';
+import { Menu, MenuLabel, MenuList, MenuLink } from './Menu';
 import { Facet, OranizationFacet } from '../reducers';
-
-const BMenu = require('re-bulma/lib/components/menu/menu').default;
-const BMenuLabel = require('re-bulma/lib/components/menu/menu-label').default;
-const BMenuList = require('re-bulma/lib/components/menu/menu-list').default;
-const BMenuLink = require('re-bulma/lib/components/menu/menu-link').default;
 
 interface FullRefsFacetProps {
     facets: OranizationFacet[];
@@ -18,60 +14,49 @@ export function FullRefsFacet(props: FullRefsFacetProps) {
     }
 
     return (
-        <BMenu>
+        <Menu>
             {props.facets.map(organization => {
                 return (
                     <div>
-                        <BMenuLabel><MenuLink count={organization.count}>{organization.term}</MenuLink></BMenuLabel>
+                        <MenuLabel><MenuLink count={organization.count}>{organization.term}</MenuLink></MenuLabel>
                         {organization.projects.length > 0 &&
-                            <BMenuList>
+                            <MenuList>
                                 {organization.projects.map(project => {
                                     return (
                                         <div>
                                             <li><MenuLink count={project.count}>{project.term}</MenuLink></li>
                                             {project.repositories.length > 0 &&
                                                 <li>
-                                                    <BMenuList>
+                                                    <MenuList>
                                                         {project.repositories.map(repository => {
                                                             return (
                                                                 <div>
                                                                     <li><MenuLink count={repository.count}>{repository.term}</MenuLink></li>
                                                                     {repository.refs.length > 0 &&
                                                                         <li>
-                                                                            <BMenuList>
+                                                                            <MenuList>
                                                                                 {repository.refs.map(ref => {
                                                                                     return (
                                                                                         <li><MenuLink count={ref.count}>{ref.term}</MenuLink></li>
                                                                                     );
                                                                                 })}
-                                                                            </BMenuList>
+                                                                            </MenuList>
                                                                         </li>
                                                                     }
                                                                 </div>
                                                             );
                                                         })}
-                                                    </BMenuList>
+                                                    </MenuList>
                                                 </li>
                                             }
                                         </div>
                                     );
                                 })}
-                            </BMenuList>
+                            </MenuList>
                         }
                     </div>
                 );
             })}
-        </BMenu>
+        </Menu>
     );
-
-}
-
-interface MenuLinkProps {
-    count: number;
-    isActive?: boolean;
-    children?: React.ReactElement<any>
-}
-
-export function MenuLink(props: MenuLinkProps) {
-    return <BMenuLink {...props}>{props.children}<Tag size='isSmall' style={{ float: 'right' }}>{props.count}</Tag></BMenuLink>
 }
