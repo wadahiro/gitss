@@ -10,7 +10,7 @@ interface ExtFacetProps {
 }
 
 export function ExtFacet(props: ExtFacetProps) {
-    if (!props.facet) {
+    if (!props.facet || !props.facet.terms) {
         return null;
     }
     return (
