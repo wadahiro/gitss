@@ -3,7 +3,8 @@ import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
-import { Grid, Row, Col } from '../components/Grid';
+import { Grid, Section, Row, Col } from '../components/Grid';
+import { Pagination, PageButton } from '../components/Pagination';
 import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
@@ -44,10 +45,43 @@ class SearchView extends React.Component<Props, void> {
         Actions.search(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
     };
 
+    showPage = (page: number) => {
+        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, page);
+    };
+
+    next = () => {
+        let next = this.props.result.current + 1;
+        const pageSize = Math.ceil(this.props.result.size / this.props.result.limit) || 0;
+        if (next >= pageSize) {
+            next = pageSize - 1;
+        }
+
+        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, next);
+    };
+
+    prev = () => {
+        let next = this.props.result.current - 1;
+        if (next < 0) {
+            next = 0;
+        }
+        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, next);
+    };
+
     render() {
         const { loading, filterParams, result, facets } = this.props;
+
+        const pageSize = Math.ceil(result.size / result.limit) || 0;
+        const pageButtons = [];
+        for (let index = 0; index < pageSize; index++) {
+            pageButtons.push((
+                <li>
+                    <PageButton onClick={this.showPage.bind(null, index)} isActive={index === result.current}>{index + 1}</PageButton>
+                </li>
+            ));
+        }
+
         return (
-            <Grid>
+            <Section>
                 <Row>
                     <Col size='is3'>
                         <FacetPanel title='File extensions'
@@ -83,10 +117,23 @@ class SearchView extends React.Component<Props, void> {
                                     </Row>
                                 );
                             })}
+                            {result && result.size > 10 &&
+                                <Row>
+                                    <Col size='is12'>
+                                        <Pagination>
+                                            <PageButton onClick={this.prev}>Previous</PageButton>
+                                            <PageButton onClick={this.next}>Next page</PageButton>
+                                            <ul>
+                                                {pageButtons}
+                                            </ul>
+                                        </Pagination>
+                                    </Col>
+                                </Row>
+                            }
                         </Grid>
                     </Col>
                 </Row>
-            </Grid>
+            </Section>
         );
     }
 }

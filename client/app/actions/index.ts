@@ -41,7 +41,7 @@ export interface SearchStart extends Action {
     };
 }
 
-export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams): void {
+export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
     dispatch({
         type: 'SEARCH_START',
         payload: {
@@ -50,7 +50,8 @@ export function search(dispatch: Dispatch<Search>, query: string, filterParams?:
     });
 
     const queryParams = Object.assign({}, filterParams, {
-        q: query
+        q: query,
+        i: page
     });
 
     WebApi.query('search', queryParams)

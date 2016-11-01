@@ -6,6 +6,7 @@ import (
 	// "bytes"
 	// "fmt"
 	// "log"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/wadahiro/gitss/server/indexer"
@@ -24,7 +25,17 @@ func SearchIndex(c *gin.Context) {
 		projects, _ := c.Request.Form["p"]
 		repositories, _ := c.Request.Form["r"]
 		branches, _ := c.Request.Form["b"]
-		result := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches})
+
+		reqPage, ok := c.Request.Form["i"]
+		page := 0
+		if ok {
+			p, err := strconv.Atoi(reqPage[0])
+			if err == nil {
+				page = p
+			}
+		}
+
+		result := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches}, page)
 
 		c.JSON(200, result)
 	} else {

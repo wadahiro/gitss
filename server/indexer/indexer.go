@@ -16,7 +16,7 @@ type Indexer interface {
 	BatchFileIndex(operations []FileIndexOperation) error
 	DeleteIndexByRefs(organization string, project string, repository string, refs []string) error
 
-	SearchQuery(query string, filters FilterParams) SearchResult
+	SearchQuery(query string, filters FilterParams, page int) SearchResult
 }
 
 type BatchMethod int

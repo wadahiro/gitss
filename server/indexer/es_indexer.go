@@ -260,7 +260,7 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
-func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams) SearchResult {
+func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams, page int) SearchResult {
 	start := time.Now()
 	result := e.search(query)
 	end := time.Now()

@@ -368,9 +368,9 @@ func (b *BleveIndexer) _delete(docID string, batch *bleve.Batch) error {
 	return nil
 }
 
-func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams) SearchResult {
+func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page int) SearchResult {
 	start := time.Now()
-	result := b.search(query, filterParams)
+	result := b.search(query, filterParams, page)
 	end := time.Now()
 
 	result.Time = (end.Sub(start)).Seconds()
@@ -448,7 +448,7 @@ func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback
 	return nil
 }
 
-func (b *BleveIndexer) search(queryString string, filterParams FilterParams) SearchResult {
+func (b *BleveIndexer) search(queryString string, filterParams FilterParams, page int) SearchResult {
 	p := qs.Parser{DefaultOp: qs.AND}
 	q, err := p.Parse(queryString)
 
@@ -459,6 +459,8 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 			FilterParams:  filterParams,
 			Hits:          []Hit{},
 			Size:          0,
+			Current:       0,
+			Limit:         10,
 			Facets:        nil,
 			FullRefsFacet: nil,
 		}
@@ -491,6 +493,10 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 
 	s.Fields = []string{"blob", "fullRefs", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
+
+	s.From = page * 10
+	s.Size = 10 // @TODO
+
 	searchResults, err := b.client.Search(s)
 
 	if err != nil {
@@ -500,6 +506,8 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 			FilterParams:  filterParams,
 			Hits:          []Hit{},
 			Size:          0,
+			Current:       0,
+			Limit:         10,
 			Facets:        nil,
 			FullRefsFacet: nil,
 		}
@@ -589,6 +597,8 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 		FilterParams:  filterParams,
 		Hits:          list,
 		Size:          int64(searchResults.Total),
+		Limit:         10,
+		Current:       page,
 		Facets:        facets,
 		FullRefsFacet: fullRefsFacetResult,
 	}

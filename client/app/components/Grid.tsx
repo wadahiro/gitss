@@ -3,6 +3,7 @@ import * as React from 'react';
 const BContainer = require('re-bulma/lib/layout/container').default;
 const Columns = require('re-bulma/lib/grid/columns').default;
 const Column = require('re-bulma/lib/grid/column').default;
+const BSection = require('re-bulma/lib/layout/section').default;
 
 export function Container(props) {
     return (
@@ -17,6 +18,14 @@ export function Grid(props) {
         <div {...props}>
             {props.children}
         </div>
+    );
+}
+
+export function Section(props) {
+    return (
+        <BSection {...props}>
+            {props.children}
+        </BSection>
     );
 }
 
