@@ -152,7 +152,8 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
             });
         case 'SEARCH_START':
             return Object.assign({}, state, {
-                loading: true
+                loading: true,
+                filterParams: action.payload.filterParams
             });
         case 'SEARCH':
             const searchResult: SearchResult = action.payload.result;

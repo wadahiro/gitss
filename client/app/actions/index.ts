@@ -36,11 +36,17 @@ export interface Search extends Action {
 
 export interface SearchStart extends Action {
     type: 'SEARCH_START';
+    payload: {
+        filterParams: FilterParams
+    };
 }
 
 export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams): void {
     dispatch({
-        type: 'SEARCH_START'
+        type: 'SEARCH_START',
+        payload: {
+            filterParams
+        }
     });
 
     const queryParams = Object.assign({}, filterParams, {
