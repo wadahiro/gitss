@@ -57,7 +57,7 @@ var MAPPING = []byte(`{
 					"fields": [{
 						"type": "text",
 						"analyzer": "en",
-						"store": true,
+						"store": false,
 						"index": true,
 						"include_term_vectors": true,
 						"include_in_all": true
@@ -465,7 +465,7 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	s.AddFacet("fullRefs", refsFacet)
 	s.AddFacet("ext", extFacet)
 
-	s.Fields = []string{"blob", "fullRefs", "content", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
+	s.Fields = []string{"blob", "fullRefs", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
 	searchResults, err := b.client.Search(s)
 
@@ -478,7 +478,7 @@ func (b *BleveIndexer) search(query string) SearchResult {
 
 	// log.Println(searchResults)
 	// f := searchResults.Facets
-	// j, _ := json.MarshalIndent(f, "", "  ")
+	// j, _ := json.MarshalIndent(searchResults, "", "  ")
 	// fmt.Printf("facets: %s\n", string(j))
 
 	for _, hit := range searchResults.Hits {
@@ -493,9 +493,11 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		s := Source{Blob: fileIndex.Blob, Metadata: fileIndex.Metadata}
 
 		// find highlighted words
-		hitWordsSet = mergeSet(hitWordsSet, getHitWords(BLEVE_HIT_TAG, hit.Fragments["content"]))
-
-		// log.Println("hitWords", hitWordsSet)?
+		hitWords := make(map[string]struct{})
+		for hitWord, _ := range hit.Locations["content"] {
+			hitWords[hitWord] = struct{}{}
+		}
+		hitWordsSet = mergeSet(hitWordsSet, hitWords)
 
 		// get the file text
 		gitRepo, err := getGitRepo(b.reader, &s)
@@ -513,6 +515,13 @@ func (b *BleveIndexer) search(query string) SearchResult {
 			}
 			return false
 		}, 3, 3)
+
+		// wrap hit words with \u0000
+		for i := range preview {
+			for k, _ := range hitWordsSet {
+				preview[i].Preview = strings.Replace(preview[i].Preview, k, "\u0000"+k+"\u0000", -1)
+			}
+		}
 
 		// log.Println(preview)
 
