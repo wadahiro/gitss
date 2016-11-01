@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
@@ -7,25 +8,37 @@ import { ExtFacet } from '../components/ExtFacet';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
 import { FileContent } from '../components/FileContent';
-import { RootState, SearchResult } from '../reducers';
+import { RootState, SearchResult, SearchFacets, FilterParams } from '../reducers';
+import * as Actions from '../actions';
 
 const MDSpinner = require('react-md-spinner').default;
 
 interface Props {
+    dispatch?: Dispatch<Action>;
     loading: boolean;
+    query: string;
+    filterParams: FilterParams;
     result: SearchResult;
+    facets: SearchFacets;
 }
 
 class SearchView extends React.Component<Props, void> {
+    handleExtToggle = (selectedExt: string) => {
+        const { filterParams: { ext } } = this.props;
+        Actions.search(this.props.dispatch, this.props.query, {
+            ext: ext.find(x => x === selectedExt) ? ext.filter(x => x !== selectedExt) : ext.concat(selectedExt)
+        });
+    };
+
     render() {
-        const { loading, result } = this.props;
+        const { loading, filterParams, result, facets } = this.props;
         return (
             <Grid>
                 <Row>
                     <Col size='is3'>
-                        <ExtFacet facet={result.facets['ext']}>
+                        <ExtFacet facet={facets.facets['ext']} selected={filterParams.ext} onToggle={this.handleExtToggle}>
                         </ExtFacet>
-                        <FullRefsFacet facets={result.fullRefsFacet}>
+                        <FullRefsFacet facets={facets.fullRefsFacet}>
                         </FullRefsFacet>
                     </Col>
                     <Col size='is9'>
@@ -60,7 +73,10 @@ class SearchView extends React.Component<Props, void> {
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
-        result: state.app.present.result
+        query: state.app.present.query,
+        filterParams: state.app.present.filterParams,
+        result: state.app.present.result,
+        facets: state.app.present.facets
     };
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/blevesearch/bleve/document"
 	"github.com/blevesearch/bleve/mapping"
 	"github.com/blevesearch/bleve/search"
+	"github.com/blevesearch/bleve/search/query"
 	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/repo"
 )
@@ -366,9 +367,9 @@ func (b *BleveIndexer) _delete(docID string, batch *bleve.Batch) error {
 	return nil
 }
 
-func (b *BleveIndexer) SearchQuery(query string) SearchResult {
+func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams) SearchResult {
 	start := time.Now()
-	result := b.search(query)
+	result := b.search(query, filterParams)
 	end := time.Now()
 
 	result.Time = (end.Sub(start)).Seconds()
@@ -446,13 +447,31 @@ func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback
 	return nil
 }
 
-func (b *BleveIndexer) search(query string) SearchResult {
+func (b *BleveIndexer) search(queryString string, filterParams FilterParams) SearchResult {
 	p := qs.Parser{DefaultOp: qs.AND}
-	q, err := p.Parse(query)
+	q, err := p.Parse(queryString)
 
 	if err != nil {
 		log.Printf("Query parse error. %+v", err)
-		return SearchResult{}
+		return SearchResult{
+			Query:         queryString,
+			FilterParams:  filterParams,
+			Hits:          []Hit{},
+			Size:          0,
+			Facets:        nil,
+			FullRefsFacet: nil,
+		}
+	}
+
+	extFilters := []query.Query{}
+	for _, ext := range filterParams.Ext {
+		if ext != "" {
+			extFilter := bleve.NewQueryStringQuery("metadata.ext:" + ext)
+			extFilters = append(extFilters, extFilter)
+		}
+	}
+	if len(extFilters) > 0 {
+		q = bleve.NewConjunctionQuery(q, bleve.NewDisjunctionQuery(extFilters...))
 	}
 
 	s := bleve.NewSearchRequest(q)
@@ -550,7 +569,14 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	fullRefsFacet := facetResultToFullRefsFacet(searchResults.Facets["fullRefs"])
 
 	// log.Println(searchResults.Total)
-	return SearchResult{Hits: list, Size: int64(searchResults.Total), Facets: facets, FullRefsFacet: fullRefsFacet}
+	return SearchResult{
+		Query:         queryString,
+		FilterParams:  filterParams,
+		Hits:          list,
+		Size:          int64(searchResults.Total),
+		Facets:        facets,
+		FullRefsFacet: fullRefsFacet,
+	}
 }
 
 func facetResultToFullRefsFacet(facetResult *search.FacetResult) []OrganizationFacet {

@@ -7,7 +7,6 @@ import (
 	// "io"
 	// "io/ioutil"
 	// "os"
-	"path"
 	"sync"
 
 	"time"
@@ -192,7 +191,7 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 						Repository:   r.Repository,
 						Refs:         []string{branchName},
 						Path:         fileEntry.Path,
-						Ext:          path.Ext(fileEntry.Path),
+						Ext:          indexer.GetExt(fileEntry.Path),
 					},
 				}
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
@@ -254,7 +253,7 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 							Repository:   r.Repository,
 							Refs:         []string{branchName},
 							Path:         fileEntry.Path,
-							Ext:          path.Ext(fileEntry.Path),
+							Ext:         indexer.GetExt(fileEntry.Path),
 						},
 					}
 					// Add index
@@ -269,7 +268,7 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 							Repository:   r.Repository,
 							Refs:         []string{branchName},
 							Path:         fileEntry.Path,
-							Ext:          path.Ext(fileEntry.Path),
+							Ext:          indexer.GetExt(fileEntry.Path),
 						},
 					}
 					// Delete index

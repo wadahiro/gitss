@@ -6,20 +6,33 @@ import (
 	// "bytes"
 	// "fmt"
 	// "log"
-	// "strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/wadahiro/gitss/server/indexer"
 )
 
 func SearchIndex(c *gin.Context) {
-	indexer := getIndexer(c)
+	i := getIndexer(c)
 
-	query := c.Query("q")
+	c.Request.ParseForm()
 
-	result := indexer.SearchQuery(query)
+	q, ok := c.Request.Form["q"]
+	// fmt.Println(q, ok)
+	if ok {
+		ext, ok := c.Request.Form["ext"]
+		if !ok {
+			ext = []string{}
+		}
+		result := i.SearchQuery(q[0], indexer.FilterParams{Ext: ext})
 
-	c.JSON(200, result)
+		if result.FilterParams.Ext == nil {
+			result.FilterParams.Ext = []string{}
+		}
+
+		c.JSON(200, result)
+	} else {
+		c.JSON(200, indexer.SearchResult{})
+	}
 }
 
 func getIndexer(c *gin.Context) indexer.Indexer {

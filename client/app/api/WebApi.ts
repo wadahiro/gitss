@@ -85,7 +85,13 @@ export default class WebApi {
     static query<T>(resource: string, queryParams: Object = {}): Promise<QueryResult<T>> {
         const query = Object.keys(queryParams).map(x => {
             const v = queryParams[x];
-            return `${x}=${v}`;
+            if (Array.isArray(v)) {
+                return v.map(y => {
+                    return `${x}=${y}`;
+                }).join('&');
+            } else {
+                return `${x}=${v}`;
+            }
         }).join('&');
         return fetch(toUrl(`${resource}?${query}`))
             .then(this.toJson);

@@ -9,13 +9,15 @@ import { RootState } from '../reducers';
 import * as Actions from '../actions';
 
 interface Props {
-    dispatch: Dispatch<Action>
+    dispatch: Dispatch<Action>;
 }
 
 class Layout extends React.Component<Props, void> {
 
     handleKeyDown = (e: KeyboardEvent) => {
         // e.preventDefault();
+
+        Actions.setQuery(this.props.dispatch, e.target['value']);
 
         if (e.keyCode === 13) {
             Actions.search(this.props.dispatch, e.target['value']);

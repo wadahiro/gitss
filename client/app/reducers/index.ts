@@ -21,10 +21,25 @@ export interface AppStateHistory {
 
 export interface AppState {
     loading: boolean;
+    query: string;
+    filterParams: FilterParams;
+    lastQuery: string;
+    facets: SearchFacets;
     result: SearchResult;
 }
 
+export interface FilterParams {
+    ext: string[];
+}
+
+export interface SearchFacets {
+    facets: Facets;
+    fullRefsFacet: OranizationFacet[];
+}
+
 export interface SearchResult {
+    query: string;
+    filterParams: FilterParams;
     time: number;
     size: number;
     limit: number;
@@ -32,8 +47,8 @@ export interface SearchResult {
     next: number;
     isLastPage: boolean;
     hits: Hit[];
-    facets: Facets;
-    fullRefsFacet: OranizationFacet[];
+    facets?: Facets;
+    fullRefsFacet?: OranizationFacet[];
 }
 export interface Hit {
     _source: Source;
@@ -104,29 +119,65 @@ export interface RefFacets {
 function init(): AppState {
     return {
         loading: false,
+        query: '',
+        filterParams: {
+            ext: []
+        },
+        lastQuery: '',
+        facets: {
+            facets: {},
+            fullRefsFacet: []
+        },
         result: {
+            query: '',
+            filterParams: {
+                ext: []
+            },
             time: -1,
             size: 0,
             limit: 0,
             current: 0,
             next: 0,
             isLastPage: true,
-            hits: [],
-            facets: {},
-            fullRefsFacet: []
+            hits: []
         }
     };
 }
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
+        case 'SET_QUERY':
+            return Object.assign({}, state, {
+                query: action.payload.query
+            });
         case 'SEARCH_START':
             return Object.assign({}, state, {
                 loading: true
             });
         case 'SEARCH':
+            const searchResult: SearchResult = action.payload.result;
+
+            let facets = {
+                facets: searchResult.facets,
+                fullRefsFacet: searchResult.fullRefsFacet
+            };
+            let filterParams = searchResult.filterParams;
+
+            if (searchResult.query !== '' && searchResult.query === state.lastQuery) {
+                // same query, so don't change facet view!
+                facets = state.facets;
+            } else {
+                // search with new keyword
+                filterParams = {
+                    ext: []
+                };
+            }
+
             return Object.assign({}, state, {
-                result: action.payload.result,
+                lastQuery: searchResult.query,
+                filterParams,
+                result: searchResult,
+                facets,
                 loading: false
             });
     }

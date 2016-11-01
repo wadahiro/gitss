@@ -16,7 +16,7 @@ type Indexer interface {
 	BatchFileIndex(operations []FileIndexOperation) error
 	DeleteIndexByRefs(organization string, project string, repository string, refs []string) error
 
-	SearchQuery(query string) SearchResult
+	SearchQuery(query string, filters FilterParams) SearchResult
 }
 
 type BatchMethod int
@@ -48,6 +48,8 @@ type Metadata struct {
 }
 
 type SearchResult struct {
+	Query         string              `json:"query"`
+	FilterParams  FilterParams        `json:"filterParams"`
 	Time          float64             `json:"time"`
 	Size          int64               `json:"size"`
 	Limit         int                 `json:"limit"`
@@ -103,7 +105,7 @@ type FacetResult struct {
 	Total   int        `json:"total"`
 	Missing int        `json:"missing"`
 	Other   int        `json:"other"`
-	Terms   TermFacets `json:"terms,omitempty"`
+	Terms   TermFacets `json:"terms"`
 }
 
 type TermFacets []TermFacet
@@ -111,6 +113,10 @@ type TermFacets []TermFacet
 type TermFacet struct {
 	Term  string `json:"term"`
 	Count int    `json:"count"`
+}
+
+type FilterParams struct {
+	Ext []string `json:"ext"`
 }
 
 func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {
@@ -133,9 +139,19 @@ func NewFileIndex(blob string, organization string, project string, repo string,
 	return fileIndex
 }
 
+const NO_EXT = "/noext/"
+
+func GetExt(p string) string {
+	ext := path.Ext(p)
+	if ext == "" {
+		return NO_EXT
+	}
+	return ext
+}
+
 func fillFileIndex(fileIndex *FileIndex) {
 	// ext
-	ext := path.Ext(fileIndex.Metadata.Path)
+	ext := GetExt(fileIndex.Metadata.Path)
 	fileIndex.Metadata.Ext = ext
 
 	// full_refs

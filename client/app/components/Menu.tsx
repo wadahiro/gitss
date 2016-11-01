@@ -27,14 +27,25 @@ export function MenuList(props: MenuProps) {
 interface MenuLinkProps extends React.HTMLAttributes {
     count?: number;
     isActive?: boolean;
+    isToggled?: boolean;
 }
 
 export function MenuLink(props: MenuLinkProps) {
+    let toggledStyle = {} as any;
+    if (props.isToggled) {
+        toggledStyle = {
+            borderLeft: '3px solid #d26911',
+            paddingLeft: 7,
+            backgroundColor: '#f5f7fa'
+        };
+    }
+    const linkStyle = Object.assign({}, toggledStyle, props.style);
+
     if (typeof props.count === 'number') {
-        return <BMenuLink {...props}>
+        return <BMenuLink {...props} style={linkStyle}>
             {props.children}
             <Tag size='isSmall' style={{ float: 'right' }}>{props.count}</Tag>
         </BMenuLink>;
     }
-    return <BMenuLink {...props}>{props.children}</BMenuLink>;
+    return <BMenuLink {...props} style={linkStyle}>{props.children}</BMenuLink>;
 }

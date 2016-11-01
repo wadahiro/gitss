@@ -23,6 +23,11 @@ export function PanelHeading(props: PanelProps) {
     return <BPanelHeading {...props} style={style}>{props.children}</BPanelHeading>;
 }
 
-export function PanelBlock(props: PanelProps) {
+interface PanelBlockProps extends React.HTMLAttributes {
+    isActive?: boolean;
+    icon?: string;
+}
+
+export function PanelBlock(props: PanelBlockProps) {
     return <BPanelBlock {...props}>{props.children}</BPanelBlock>;
 }
