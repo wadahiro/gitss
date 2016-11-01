@@ -11,7 +11,7 @@
 
 ## About
 
-`GITSS` is full text source search for git repositories.
+`GITSS` is full text source search app for git repositories.
 This repository is heavily under development and unstable now.
 
 ## How to use
