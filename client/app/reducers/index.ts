@@ -37,6 +37,7 @@ export interface SearchResult {
 }
 export interface Hit {
     _source: Source;
+    keyword: string[];
     preview: Preview[];
 }
 export interface Preview {

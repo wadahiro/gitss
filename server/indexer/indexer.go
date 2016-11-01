@@ -80,7 +80,8 @@ type RefFacet struct {
 }
 
 type Hit struct {
-	Source Source `json:"_source"`
+	Source  Source   `json:"_source"`
+	Keyword []string `json:"keyword"`
 	// Highlight map[string][]string `json:"highlight"`
 	Preview []util.TextPreview `json:"preview"`
 }

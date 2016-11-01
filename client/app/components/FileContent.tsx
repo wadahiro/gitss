@@ -7,6 +7,7 @@ const CRLF = /\r\n|\r|\n/g;
 
 interface Props {
     metadata: FileMetadata;
+    keyword: string[];
     preview: Preview[];
 }
 
@@ -38,7 +39,8 @@ export class FileContent extends React.Component<Props, State>{
                 rawButton: false,
                 windowButton: false,
                 infoButton: false,
-                ampersandCleanup: false
+                ampersandCleanup: false,
+                showLinenumbers: true
             }, div);
 
             enlighter.enlight(true);
@@ -50,7 +52,7 @@ export class FileContent extends React.Component<Props, State>{
     }
 
     render() {
-        const { metadata, preview} = this.props;
+        const { metadata, preview, keyword } = this.props;
 
         preview.sort((a, b) => {
             if (a.offset < b.offset) {
@@ -60,6 +62,23 @@ export class FileContent extends React.Component<Props, State>{
                 return 1;
             }
             return 0;
+        });
+
+        keyword.sort((a, b) => {
+            if (a.length < b.length) {
+                return -1;
+            }
+            if (a.length > b.length) {
+                return 1;
+            }
+            return 0;
+        });
+        // console.log(keyword)
+        const keywordRegex = keyword.map(x => new RegExp("(" + preg_quote(x) + ")", 'gi'));
+        preview.forEach(x => {
+            keywordRegex.forEach(re => {
+                x.preview = x.preview.replace(re, "\u0000$1\u0000");
+            });
         });
 
         const styles = {
@@ -203,4 +222,21 @@ class CustomBlockRenderer {
         }
         return container;
     }
+}
+
+// http://stackoverflow.com/questions/280793/case-insensitive-string-replacement-in-javascript
+function preg_quote(str) {
+    // http://kevin.vanzonneveld.net
+    // +   original by: booeyOH
+    // +   improved by: Ates Goral (http://magnetiq.com)
+    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +   bugfixed by: Onno Marsman
+    // *     example 1: preg_quote("$40");
+    // *     returns 1: '\$40'
+    // *     example 2: preg_quote("*RRRING* Hello?");
+    // *     returns 2: '\*RRRING\* Hello\?'
+    // *     example 3: preg_quote("\\.+*?[^]$(){}=!<>|:");
+    // *     returns 3: '\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:'
+
+    return (str + '').replace(/([\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:])/g, "\\$1");
 }

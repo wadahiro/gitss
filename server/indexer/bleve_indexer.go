@@ -474,7 +474,6 @@ func (b *BleveIndexer) search(query string) SearchResult {
 	}
 
 	list := []Hit{}
-	hitWordsSet := make(map[string]struct{})
 
 	// log.Println(searchResults)
 	// f := searchResults.Facets
@@ -493,11 +492,10 @@ func (b *BleveIndexer) search(query string) SearchResult {
 		s := Source{Blob: fileIndex.Blob, Metadata: fileIndex.Metadata}
 
 		// find highlighted words
-		hitWords := make(map[string]struct{})
+		hitWordSet := make(map[string]struct{})
 		for hitWord, _ := range hit.Locations["content"] {
-			hitWords[hitWord] = struct{}{}
+			hitWordSet[hitWord] = struct{}{}
 		}
-		hitWordsSet = mergeSet(hitWordsSet, hitWords)
 
 		// get the file text
 		gitRepo, err := getGitRepo(b.reader, &s)
@@ -508,24 +506,27 @@ func (b *BleveIndexer) search(query string) SearchResult {
 
 		// make preview
 		preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
-			for k, _ := range hitWordsSet {
-				if strings.Contains(line, k) {
+			for k, _ := range hitWordSet {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(k)) {
 					return true
 				}
 			}
 			return false
 		}, 3, 3)
 
-		// wrap hit words with \u0000
-		for i := range preview {
-			for k, _ := range hitWordsSet {
-				preview[i].Preview = strings.Replace(preview[i].Preview, k, "\u0000"+k+"\u0000", -1)
-			}
+		// // wrap hit words with \u0000
+		// for i := range preview {
+		// 	for k, _ := range hitWordSet {
+		// 		preview[i].Preview = strings.Replace(preview[i].Preview, k, "\u0000"+k+"\u0000", -1)
+		// 	}
+		// }
+		keyword := []string{}
+		for k, _ := range hitWordSet {
+			keyword = append(keyword, k)
 		}
-
 		// log.Println(preview)
 
-		h := Hit{Source: s, Preview: preview}
+		h := Hit{Source: s, Preview: preview, Keyword: keyword}
 		list = append(list, h)
 	}
 

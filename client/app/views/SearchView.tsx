@@ -44,7 +44,7 @@ class SearchView extends React.Component<Props, void> {
                                 return (
                                     <Row key={x._source.blob}>
                                         <Col size='is12'>
-                                            <FileContent metadata={x._source.metadata} preview={x.preview} />
+                                            <FileContent metadata={x._source.metadata} keyword={x.keyword} preview={x.preview} />
                                         </Col>
                                     </Row>
                                 );
