@@ -44,7 +44,7 @@ This repository is heavily under development and unstable now.
 
 1. Install [gom](https://github.com/mattn/gom)(old version), [fresh](https://github.com/pilu/fresh).
 
-```bash
+ ```bash
 go get github.com/mattn/gom
 go get github.com/pilu/fresh
 
@@ -52,19 +52,19 @@ go get github.com/pilu/fresh
 cd $GOPATH/src/github.com/mattn/gom
 git checkout 393e714d663c35e121a47fec32964c44a630219b
 go install
-```
+ ```
 
 2. Install Golang dependencies.
 
-```bash
+ ```bash
 gom install
-```
+ ```
 
 3. Install JavaScript dependencies.
 
-```bash
+ ```bash
 yarn
-```
+ ```
 
 ### Run with development mode
 
