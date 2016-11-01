@@ -7,6 +7,7 @@ import (
 	"time"
 	// "strconv"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bcampbell/qs"
@@ -463,39 +464,51 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 		}
 	}
 
-	extFilters := []query.Query{}
-	for _, ext := range filterParams.Ext {
-		if ext != "" {
-			extFilter := bleve.NewQueryStringQuery("metadata.ext:" + ext)
-			extFilters = append(extFilters, extFilter)
-		}
-	}
-	if len(extFilters) > 0 {
-		q = bleve.NewConjunctionQuery(q, bleve.NewDisjunctionQuery(extFilters...))
-	}
+	q = appendFilters(q, filterParams.Exts, "ext")
+	q = appendFilters(q, filterParams.Organizations, "organization")
+	q = appendFilters(q, filterParams.Projects, "project")
+	q = appendFilters(q, filterParams.Repositories, "repository")
+	q = appendFilters(q, filterParams.Refs, "refs")
 
 	s := bleve.NewSearchRequest(q)
 
 	//
 	// organizationFacet := bleve.NewFacetRequest("metadata.organization", 5)
 	// s.AddFacet("organization", organizationFacet)
-	refsFacet := bleve.NewFacetRequest("fullRefs", 100)
+	fullRefsFacet := bleve.NewFacetRequest("fullRefs", 100)
 	extFacet := bleve.NewFacetRequest("metadata.ext", 100)
-	s.AddFacet("fullRefs", refsFacet)
+	organizationFacet := bleve.NewFacetRequest("metadata.organization", 100)
+	projectFacet := bleve.NewFacetRequest("metadata.project", 100)
+	repositoryFacet := bleve.NewFacetRequest("metadata.repository", 100)
+	refsFacet := bleve.NewFacetRequest("metadata.refs", 100)
+
+	s.AddFacet("fullRefs", fullRefsFacet)
 	s.AddFacet("ext", extFacet)
+	s.AddFacet("organization", organizationFacet)
+	s.AddFacet("project", projectFacet)
+	s.AddFacet("repository", repositoryFacet)
+	s.AddFacet("refs", refsFacet)
 
 	s.Fields = []string{"blob", "fullRefs", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
 	s.Highlight = bleve.NewHighlight()
 	searchResults, err := b.client.Search(s)
 
 	if err != nil {
-		log.Println(err)
+		log.Printf("Query error. %+v", err)
+		return SearchResult{
+			Query:         queryString,
+			FilterParams:  filterParams,
+			Hits:          []Hit{},
+			Size:          0,
+			Facets:        nil,
+			FullRefsFacet: nil,
+		}
 	}
 
 	list := []Hit{}
 
 	// log.Println(searchResults)
-	// f := searchResults.Facets
+	// // f := searchResults.Facets
 	// j, _ := json.MarshalIndent(searchResults, "", "  ")
 	// fmt.Printf("facets: %s\n", string(j))
 
@@ -552,6 +565,8 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 	facets := FacetResults{}
 
 	for k, v := range searchResults.Facets {
+		sort.Sort(&v.Terms)
+
 		tf := TermFacets{}
 		for _, term := range v.Terms {
 			tf = append(tf, TermFacet{Term: term.Term, Count: term.Count})
@@ -566,7 +581,7 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 	}
 
 	// fullRefs
-	fullRefsFacet := facetResultToFullRefsFacet(searchResults.Facets["fullRefs"])
+	fullRefsFacetResult := facetResultToFullRefsFacet(searchResults.Facets["fullRefs"])
 
 	// log.Println(searchResults.Total)
 	return SearchResult{
@@ -575,8 +590,23 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams) Sea
 		Hits:          list,
 		Size:          int64(searchResults.Total),
 		Facets:        facets,
-		FullRefsFacet: fullRefsFacet,
+		FullRefsFacet: fullRefsFacetResult,
 	}
+}
+
+func appendFilters(q query.Query, list []string, key string) query.Query {
+	filters := []query.Query{}
+	for i := range list {
+		val := list[i]
+		if val != "" {
+			filter := bleve.NewQueryStringQuery("metadata." + key + ":" + val)
+			filters = append(filters, filter)
+		}
+	}
+	if len(filters) > 0 {
+		return bleve.NewConjunctionQuery(q, bleve.NewDisjunctionQuery(filters...))
+	}
+	return q
 }
 
 func facetResultToFullRefsFacet(facetResult *search.FacetResult) []OrganizationFacet {
@@ -593,29 +623,12 @@ func facetResultToFullRefsFacet(facetResult *search.FacetResult) []OrganizationF
 		}
 		if ok, project := isProject(termFacet.Term); ok {
 			projectsMap[termFacet.Term] = &ProjectFacet{Term: project, Count: termFacet.Count}
-			// if !ok {
-			// 	list = &[]ProjectFacet{}
-			// 	projectsMap[parent] = list
-			// }
-			// *list = append(*list, ProjectFacet{Term: project, Count: termFacet.Count})
 		}
 		if ok, repository := isRepository(termFacet.Term); ok {
 			repositoriesMap[termFacet.Term] = &RepositoryFacet{Term: repository, Count: termFacet.Count}
-			// list, ok := repositoriesMap[parent]
-			// if !ok {
-			// 	list = &[]RepositoryFacet{}
-			// 	repositoriesMap[parent] = list
-			// }
-			// *list = append(*list, RepositoryFacet{Term: repository, Count: termFacet.Count})
 		}
 		if ok, ref := isRef(termFacet.Term); ok {
 			refsMap[termFacet.Term] = &RefFacet{Term: ref, Count: termFacet.Count}
-			// list, ok := refsMap[parent]
-			// if !ok {
-			// 	list = &[]RefFacet{}
-			// 	refsMap[parent] = list
-			// }
-			// *list = append(*list, RefFacet{Term: ref, Count: termFacet.Count})
 		}
 	}
 

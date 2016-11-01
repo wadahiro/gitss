@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 
 import { Grid, Row, Col } from '../components/Grid';
 import { ExtFacet } from '../components/ExtFacet';
+import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
 import { FileContent } from '../components/FileContent';
@@ -23,11 +24,24 @@ interface Props {
 }
 
 class SearchView extends React.Component<Props, void> {
-    handleExtToggle = (selectedExt: string) => {
-        const { filterParams: { ext } } = this.props;
-        Actions.search(this.props.dispatch, this.props.query, {
-            ext: ext.find(x => x === selectedExt) ? ext.filter(x => x !== selectedExt) : ext.concat(selectedExt)
-        });
+    handleExtToggle = (term: string) => {
+        Actions.search(this.props.dispatch, this.props.query, mergeTerm('x', this.props.filterParams, term));
+    };
+
+    handleOrganizationToggle = (term: string) => {
+        Actions.search(this.props.dispatch, this.props.query, mergeTerm('o', this.props.filterParams, term));
+    };
+
+    handleProjectToggle = (term: string) => {
+        Actions.search(this.props.dispatch, this.props.query, mergeTerm('p', this.props.filterParams, term));
+    };
+
+    handleRepositoryToggle = (term: string) => {
+        Actions.search(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
+    };
+
+    handleRefsToggle = (term: string) => {
+        Actions.search(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
     };
 
     render() {
@@ -36,23 +50,30 @@ class SearchView extends React.Component<Props, void> {
             <Grid>
                 <Row>
                     <Col size='is3'>
-                        <ExtFacet facet={facets.facets['ext']} selected={filterParams.ext} onToggle={this.handleExtToggle}>
-                        </ExtFacet>
-                        <FullRefsFacet facets={facets.fullRefsFacet}>
-                        </FullRefsFacet>
+                        <FacetPanel title='File extensions'
+                            facet={facets.facets['ext']}
+                            selected={filterParams.x}
+                            onToggle={this.handleExtToggle} />
+                        <FacetPanel title='Organization'
+                            facet={facets.facets['organization']}
+                            selected={filterParams.o}
+                            onToggle={this.handleOrganizationToggle} />
+                        <FacetPanel title='Project'
+                            facet={facets.facets['project']}
+                            selected={filterParams.p}
+                            onToggle={this.handleProjectToggle} />
+                        <FacetPanel title='Repository'
+                            facet={facets.facets['repository']}
+                            selected={filterParams.r}
+                            onToggle={this.handleRepositoryToggle} />
+                        <FacetPanel title='Branches'
+                            facet={facets.facets['refs']}
+                            selected={filterParams.b}
+                            onToggle={this.handleRefsToggle} />
+
                     </Col>
                     <Col size='is9'>
                         <Grid>
-                            <Row>
-                                <Col size='is12'>
-                                    {loading ?
-                                        <h4><MDSpinner /></h4>
-                                        :
-                                        <h4>We’ve found {result.size}&nbsp;code results {result.time > 0 ? `(${Math.round(result.time * 1000) / 1000} seconds)` : ''}</h4>
-                                    }
-                                </Col>
-                            </Row>
-                            <hr />
                             {result.hits.map(x => {
                                 return (
                                     <Row key={x._source.blob}>
@@ -68,6 +89,19 @@ class SearchView extends React.Component<Props, void> {
             </Grid>
         );
     }
+}
+
+function mergeTerm(key: string, params: FilterParams, term: string) {
+    const target = params[key] || [];
+    let terms;
+    if (target.find(x => x === term)) {
+        terms = target.filter(x => x !== term);
+    } else {
+        terms = target.concat(term);
+    }
+    return Object.assign({}, params, {
+        [key]: terms
+    });
 }
 
 function mapStateToProps(state: RootState, props: Props): Props {

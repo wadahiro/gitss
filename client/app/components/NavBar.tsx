@@ -1,49 +1,78 @@
 import * as React from 'react';
 
-import { Grid, Row, Col } from './Grid';
+import { Container, Grid, Row, Col } from './Grid';
 import { InputText } from './Input';
+import { SearchResult } from '../reducers';
 
 const BNav = require('re-bulma/lib/components/nav/nav').default;
 const BNavGroup = require('re-bulma/lib/components/nav/nav-group').default;
 const BNavItem = require('re-bulma/lib/components/nav/nav-item').default;
 const BTitle = require('re-bulma/lib/elements/title').default;
+const BHero = require('re-bulma/lib/layout/hero').default;
+const BHeroHead = require('re-bulma/lib/layout/hero-head').default;
+const BHeroBody = require('re-bulma/lib/layout/hero-body').default;
 
-export function NavBar(props) {
+const MDSpinner = require('react-md-spinner').default;
+
+interface NavProps {
+    onKeyDown: React.KeyboardEventHandler;
+    loading: boolean;
+    result: SearchResult;
+}
+
+export function NavBar(props: NavProps) {
     const title = {
         background: "url(./imgs/title.png) 0px 0px no-repeat"
     }
-    const navStyle = {
+    const rootTyle = {
         position: 'fixed',
+        width: '100%',
+        zIndex: 1100,
+        top: 0,
+        marginBottom: 100
+    };
+    const navStyle = {
         backgroundColor: '#205081',
         width: '100%',
         zIndex: 1100,
         paddingLeft: 24,
-        paddingRight: 24,
-        top: 0,
-        marginBottom: 80
+        paddingRight: 24
     };
 
     // <img src="./imgs/title.png" alt="GitSS" width='400'/>
     return (
-        <BNav style={navStyle}>
-            <BNavGroup align='left'>
-                <BNavItem>
-                    <BTitle style={{ color: 'white' }}>GitSS</BTitle>
-                </BNavItem>
-            </BNavGroup>
-            <BNavGroup align='center'>
-                <BNavItem>
-                    <InputText
-                        placeholder='Search'
-                        icon='fa fa-search'
-                        size='isLarge'
-                        hasIcon
-                        onKeyDown={props.onKeyDown}
-                        />
-                </BNavItem>
-            </BNavGroup>
-            <BNavGroup align='right'>
-            </BNavGroup>
-        </BNav>
+        <div style={rootTyle}>
+            <BNav style={navStyle}>
+                <BNavGroup align='left'>
+                    <BNavItem>
+                        <BTitle style={{ color: 'white' }}>GitSS</BTitle>
+                    </BNavItem>
+                </BNavGroup>
+                <BNavGroup align='center'>
+                    <BNavItem>
+                        <InputText
+                            placeholder='Search'
+                            icon='fa fa-search'
+                            size='isLarge'
+                            hasIcon
+                            onKeyDown={props.onKeyDown}
+                            />
+                    </BNavItem>
+                </BNavGroup>
+                <BNavGroup align='right'>
+                </BNavGroup>
+            </BNav>
+            <BHero style={{ backgroundColor: '#f5f7fa', borderBottom: '1px solid #ccc' }}>
+                <BHeroHead>
+                    <Container hasTextCentered>
+                        {props.loading ?
+                            <MDSpinner />
+                            :
+                            <p style={{ margin: 5 }}><b>We’ve found {props.result.size}&nbsp;code results {props.result.time > 0 ? `(${Math.round(props.result.time * 1000) / 1000} seconds)` : ''}</b></p>
+                        }
+                    </Container>
+                </BHeroHead>
+            </BHero>
+        </div>
     );
 }

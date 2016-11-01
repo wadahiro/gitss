@@ -116,7 +116,11 @@ type TermFacet struct {
 }
 
 type FilterParams struct {
-	Ext []string `json:"ext"`
+	Exts          []string `json:"x,omitempty"`
+	Organizations []string `json:"o,omitempty"`
+	Projects      []string `json:"p,omitempty"`
+	Repositories  []string `json:"r,omitempty"`
+	Refs          []string `json:"b,omitempty"`
 }
 
 func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {

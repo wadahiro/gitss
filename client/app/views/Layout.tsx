@@ -5,16 +5,18 @@ import { Link } from 'react-router'
 
 import { NavBar } from '../components/NavBar';
 import { Container, Grid, Row, Col } from '../components/Grid';
-import { RootState } from '../reducers';
+import { RootState, SearchResult } from '../reducers';
 import * as Actions from '../actions';
 
 interface Props {
-    dispatch: Dispatch<Action>;
+    dispatch?: Dispatch<Action>;
+    loading: boolean;
+    result: SearchResult;
 }
 
 class Layout extends React.Component<Props, void> {
 
-    handleKeyDown = (e: KeyboardEvent) => {
+    handleKeyDown = (e: React.KeyboardEvent) => {
         // e.preventDefault();
 
         Actions.setQuery(this.props.dispatch, e.target['value']);
@@ -27,8 +29,8 @@ class Layout extends React.Component<Props, void> {
     render() {
         return (
             <div>
-                <NavBar onKeyDown={this.handleKeyDown} />
-                <Container style={{marginTop: 80}}>
+                <NavBar onKeyDown={this.handleKeyDown} loading={this.props.loading} result={this.props.result} />
+                <Container style={{ marginTop: 120 }}>
                     <Row>
                         <Col size='is12'>
                             {this.props.children}
@@ -40,12 +42,15 @@ class Layout extends React.Component<Props, void> {
     }
 }
 
-function mapStateToProps(state: RootState, props: Props): any {
-    return {};
+function mapStateToProps(state: RootState, props: Props): Props {
+    return {
+        loading: state.app.present.loading,
+        result: state.app.present.result
+    };
 }
 
 const LayoutContainer = connect(
-        mapStateToProps
+    mapStateToProps
 )(Layout);
 
 export default LayoutContainer;

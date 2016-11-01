@@ -19,15 +19,12 @@ func SearchIndex(c *gin.Context) {
 	q, ok := c.Request.Form["q"]
 	// fmt.Println(q, ok)
 	if ok {
-		ext, ok := c.Request.Form["ext"]
-		if !ok {
-			ext = []string{}
-		}
-		result := i.SearchQuery(q[0], indexer.FilterParams{Ext: ext})
-
-		if result.FilterParams.Ext == nil {
-			result.FilterParams.Ext = []string{}
-		}
+		exts, _ := c.Request.Form["x"]
+		organizations, _ := c.Request.Form["o"]
+		projects, _ := c.Request.Form["p"]
+		repositories, _ := c.Request.Form["r"]
+		branches, _ := c.Request.Form["b"]
+		result := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches})
 
 		c.JSON(200, result)
 	} else {

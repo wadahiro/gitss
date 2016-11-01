@@ -29,7 +29,11 @@ export interface AppState {
 }
 
 export interface FilterParams {
-    ext: string[];
+    x?: string[]; // ext
+    o?: string[]; // organization
+    p?: string[]; // project
+    r?: string[]; // repository
+    b?: string[]; // refs
 }
 
 export interface SearchFacets {
@@ -120,9 +124,7 @@ function init(): AppState {
     return {
         loading: false,
         query: '',
-        filterParams: {
-            ext: []
-        },
+        filterParams: {},
         lastQuery: '',
         facets: {
             facets: {},
@@ -130,9 +132,7 @@ function init(): AppState {
         },
         result: {
             query: '',
-            filterParams: {
-                ext: []
-            },
+            filterParams: {},
             time: -1,
             size: 0,
             limit: 0,
@@ -153,7 +153,7 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
         case 'SEARCH_START':
             return Object.assign({}, state, {
                 loading: true,
-                filterParams: action.payload.filterParams
+                filterParams: action.payload.filterParams || {}
             });
         case 'SEARCH':
             const searchResult: SearchResult = action.payload.result;
@@ -169,14 +169,12 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
                 facets = state.facets;
             } else {
                 // search with new keyword
-                filterParams = {
-                    ext: []
-                };
+                filterParams = {};
             }
 
             return Object.assign({}, state, {
                 lastQuery: searchResult.query,
-                filterParams,
+                filterParams: fillFilterParams(filterParams),
                 result: searchResult,
                 facets,
                 loading: false
@@ -185,6 +183,10 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
 
     return state;
 };
+
+function fillFilterParams(filterParams: FilterParams): FilterParams {
+    return filterParams;
+}
 
 export default combineReducers({
     app: undoable(appStateReducer, {

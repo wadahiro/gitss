@@ -10,6 +10,12 @@ interface TagProps {
     children?: React.ReactElement<any>;
 }
 
+const defaultStyle = {
+    color: '#fff',
+    backgroundColor: '#3572b0'
+};
+
 export function Tag(props: TagProps) {
-    return <BTag {...props}>{props.children}</BTag>
+    const style = Object.assign({}, defaultStyle, props.style);
+    return <BTag {...props} style={style}>{props.children}</BTag>
 }

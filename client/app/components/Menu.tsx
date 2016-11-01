@@ -43,7 +43,7 @@ export function MenuLink(props: MenuLinkProps) {
 
     if (typeof props.count === 'number') {
         return <BMenuLink {...props} style={linkStyle}>
-            {props.children}
+            <span style={{ paddingRight: 30 }}>{props.children}</span>
             <Tag size='isSmall' style={{ float: 'right' }}>{props.count}</Tag>
         </BMenuLink>;
     }
