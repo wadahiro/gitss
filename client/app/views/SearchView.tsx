@@ -86,6 +86,8 @@ class SearchView extends React.Component<Props, void> {
                     <Col size='is3'>
                         <FacetPanel title='File extensions'
                             facet={facets.facets['ext']}
+                            emptyKeyword='/noext/'
+                            emptyLabel='(No extension)'
                             selected={filterParams.x}
                             onToggle={this.handleExtToggle} />
                         <FacetPanel title='Organization'

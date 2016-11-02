@@ -95,7 +95,11 @@ export class FileContent extends React.Component<Props, State>{
                         );
                     })}
                 </div>
-                <h4>{`${metadata.organization}:${metadata.project}/${metadata.repository} – ${metadata.path}`}</h4>
+                <h4>
+                    {`${metadata.organization}: ${metadata.project}`}
+                    <span style={{ margin: '0 0.25em' }}>/</span>
+                    {`${metadata.repository} – ${metadata.path}`}
+                </h4>
                 {preview.map((pre, i) => {
                     return (
                         <div key={pre.offset}>

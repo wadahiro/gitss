@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 	// "strconv"
-	"regexp"
+
 	"sort"
 	"strings"
 
@@ -162,8 +162,6 @@ var MAPPING = []byte(`{
 	"index_dynamic": true,
 	"analysis": {}
 }`)
-
-var BLEVE_HIT_TAG = regexp.MustCompile(`<mark>(.*?)</mark>`)
 
 type BleveIndexer struct {
 	config config.Config
@@ -459,11 +457,15 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 		}
 	}
 
-	q = appendFilters(q, filterParams.Exts, "ext")
-	q = appendFilters(q, filterParams.Organizations, "organization")
-	q = appendFilters(q, filterParams.Projects, "project")
-	q = appendFilters(q, filterParams.Repositories, "repository")
-	q = appendFilters(q, filterParams.Refs, "refs")
+	if b.debug {
+		log.Printf("ParsedQuery: %v\n", q)
+	}
+
+	q = appendFilters(q, filterParams.Exts, "ext", true)
+	q = appendFilters(q, filterParams.Organizations, "organization", false)
+	q = appendFilters(q, filterParams.Projects, "project", false)
+	q = appendFilters(q, filterParams.Repositories, "repository", false)
+	q = appendFilters(q, filterParams.Refs, "refs", false)
 
 	s := bleve.NewSearchRequest(q)
 
@@ -595,12 +597,16 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 	}
 }
 
-func appendFilters(q query.Query, list []string, key string) query.Query {
+func appendFilters(q query.Query, list []string, key string, shouldWrap bool) query.Query {
 	filters := []query.Query{}
+	var wrap string
+	if shouldWrap {
+		wrap = `"`
+	}
 	for i := range list {
 		val := list[i]
 		if val != "" {
-			filter := bleve.NewQueryStringQuery(key + ":" + val)
+			filter := bleve.NewQueryStringQuery(key + ":" + wrap + val + wrap)
 			filters = append(filters, filter)
 		}
 	}
@@ -734,7 +740,6 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 		case "ext":
 			fileIndex.Metadata.Ext = value
-
 		}
 	}
 
