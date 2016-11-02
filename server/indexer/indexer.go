@@ -32,13 +32,13 @@ type FileIndexOperation struct {
 }
 
 type FileIndex struct {
-	Blob     string   `json:"blob"`
+	Metadata
 	FullRefs []string `json:"fullRefs"`
-	Metadata Metadata `json:"metadata"`
 	Content  string   `json:"content"`
 }
 
 type Metadata struct {
+	Blob         string   `json:"blob"`
 	Organization string   `json:"organization"`
 	Project      string   `json:"project"`
 	Repository   string   `json:"repository"`
@@ -82,15 +82,10 @@ type RefFacet struct {
 }
 
 type Hit struct {
-	Source  Source   `json:"_source"`
+	Metadata
 	Keyword []string `json:"keyword"`
 	// Highlight map[string][]string `json:"highlight"`
 	Preview []util.TextPreview `json:"preview"`
-}
-
-type Source struct {
-	Blob     string   `json:"blob"`
-	Metadata Metadata `json:"metadata"`
 }
 
 type HighlightSource struct {
@@ -123,22 +118,22 @@ type FilterParams struct {
 	Refs          []string `json:"b,omitempty"`
 }
 
-func getGitRepo(reader *repo.GitRepoReader, s *Source) (*repo.GitRepo, error) {
-	repo, err := reader.GetGitRepo(s.Metadata.Organization, s.Metadata.Project, s.Metadata.Repository)
+func getGitRepo(reader *repo.GitRepoReader, fileIndex *FileIndex) (*repo.GitRepo, error) {
+	repo, err := reader.GetGitRepo(fileIndex.Organization, fileIndex.Project, fileIndex.Repository)
 	return repo, err
 }
 
 func NewFileIndex(blob string, organization string, project string, repo string, ref string, path string, content string) FileIndex {
 	fileIndex := FileIndex{
-		Blob:    blob,
-		Content: content,
 		Metadata: Metadata{
+			Blob:         blob,
 			Organization: organization,
 			Project:      project,
 			Repository:   repo,
 			Refs:         []string{ref},
 			Path:         path,
 		},
+		Content: content,
 	}
 	return fileIndex
 }

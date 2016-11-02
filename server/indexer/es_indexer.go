@@ -94,70 +94,65 @@ func (esi *ESIndexer) Init() {
 					type: "string",
 					index: "not_analyzed"
 				},
-				metadata: {
-					type: "nested",
-					properties: {
+				organization: {
+					type: "multi_field",
+					fields: {
 						organization: {
-							type: "multi_field",
-							fields: {
-								organization: {
-									type: "string",
-									index: "analyzed"
-								},
-								full: {
-									type: "string",
-									index: "not_analyzed"
-								}
-							}
-						},
-						project: {
-							type: "multi_field",
-							fields: {
-								project: {
-									type: "string",
-									index: "analyzed"
-								},
-								full: {
-									type: "string",
-									index: "not_analyzed"
-								}
-							}
-						},
-						repository: {
-							type: "multi_field",
-							fields: {
-								repository: {
-									type: "string",
-									index: "analyzed"
-								},
-								full: {
-									type: "string",
-									index: "not_analyzed"
-								}
-							}
-						},
-						refs: {
-							type: "multi_field",
-							fields: {
-								refs: {
-									type: "string",
-									index: "analyzed"
-								},
-								full: {
-									type: "string",
-									index: "not_analyzed"
-								}
-							}
-						},
-						path: {
 							type: "string",
-							analyzer: "path_analyzer"
+							index: "analyzed"
 						},
-						ext: {
+						full: {
 							type: "string",
 							index: "not_analyzed"
 						}
 					}
+				},
+				project: {
+					type: "multi_field",
+					fields: {
+						project: {
+							type: "string",
+							index: "analyzed"
+						},
+						full: {
+							type: "string",
+							index: "not_analyzed"
+						}
+					}
+				},
+				repository: {
+					type: "multi_field",
+					fields: {
+						repository: {
+							type: "string",
+							index: "analyzed"
+						},
+						full: {
+							type: "string",
+							index: "not_analyzed"
+						}
+					}
+				},
+				refs: {
+					type: "multi_field",
+					fields: {
+						refs: {
+							type: "string",
+							index: "analyzed"
+						},
+						full: {
+							type: "string",
+							index: "not_analyzed"
+						}
+					}
+				},
+				path: {
+					type: "string",
+					analyzer: "path_analyzer"
+				},
+				ext: {
+					type: "string",
+					index: "not_analyzed"
 				},
 				content: {
 					type: "string",
@@ -274,10 +269,10 @@ func (e *ESIndexer) search(query string) SearchResult {
 	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
 	searchResult, err := e.client.Search().
 		Index("gosource"). // search in index "twitter"
-		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("blob", "metadata")).
+		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("blob", "organization", "project", "repository", "refs", "path", "ext")).
 		Query(q). // specify the query
 		Highlight(elastic.NewHighlight().Field("content").PreTags(PRE_TAG).PostTags(POST_TAG)).
-		Sort("metadata.path", true). // sort by "user" field, ascending
+		Sort("path", true). // sort by "user" field, ascending
 		From(0).Size(10).            // take documents 0-9
 		Pretty(true).                // pretty print request and response JSON
 		Do()                         // execute
@@ -295,7 +290,7 @@ func (e *ESIndexer) search(query string) SearchResult {
 			// hit.Index contains the name of the index
 
 			// Deserialize hit.Source into a Tweet (could also be just a map[string]interface{}).
-			var s Source
+			var s FileIndex
 			json.Unmarshal(*hit.Source, &s)
 
 			// find highlighted words
@@ -334,7 +329,7 @@ func (e *ESIndexer) search(query string) SearchResult {
 			// 	// hsList = append(hsList, hs)
 			// }
 
-			h := Hit{Source: s, Preview: preview}
+			h := Hit{Metadata: s.Metadata, Preview: preview}
 			list = append(list, h)
 		}
 	}

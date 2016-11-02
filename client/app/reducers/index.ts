@@ -54,23 +54,20 @@ export interface SearchResult {
     facets?: Facets;
     fullRefsFacet?: OranizationFacet[];
 }
-export interface Hit {
-    _source: Source;
+
+export interface Hit extends FileMetadata {
     keyword: string[];
     preview: Preview[];
 }
+
 export interface Preview {
     offset: number;
     preview: string;
     hits: number[];
 }
-export interface Source {
-    blob: string;
-    content: string;
-    metadata: FileMetadata;
-}
 
 export interface FileMetadata {
+    blob: string;
     organization: string;
     project: string;
     repository: string;

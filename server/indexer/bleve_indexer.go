@@ -53,6 +53,84 @@ var MAPPING = []byte(`{
 					}],
 					"default_analyzer": ""
 				},
+				"organization": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": false,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"project": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": false,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"repository": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": false,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"refs": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": false,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"path": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "path_hierarchy",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"ext": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
 				"content": {
 					"enabled": true,
 					"dynamic": true,
@@ -64,91 +142,6 @@ var MAPPING = []byte(`{
 						"include_term_vectors": true,
 						"include_in_all": true
 					}],
-					"default_analyzer": ""
-				},
-				"metadata": {
-					"enabled": true,
-					"dynamic": true,
-					"properties": {
-						"organization": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "keyword",
-								"store": true,
-								"index": true,
-								"include_term_vectors": false,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"project": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "keyword",
-								"store": true,
-								"index": true,
-								"include_term_vectors": false,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"repository": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "keyword",
-								"store": true,
-								"index": true,
-								"include_term_vectors": false,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"refs": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "keyword",
-								"store": true,
-								"index": true,
-								"include_term_vectors": false,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"path": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "path_hierarchy",
-								"store": true,
-								"index": true,
-								"include_term_vectors": true,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						},
-						"ext": {
-							"enabled": true,
-							"dynamic": true,
-							"fields": [{
-								"type": "text",
-								"analyzer": "keyword",
-								"store": true,
-								"index": true,
-								"include_term_vectors": true,
-								"include_in_all": false
-							}],
-							"default_analyzer": ""
-						}
-					},
 					"default_analyzer": ""
 				}
 			},
@@ -378,14 +371,14 @@ func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page
 }
 
 func (b *BleveIndexer) searchByRefs(organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
-	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
-	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
-	rq := bleve.NewQueryStringQuery("metadata.repository:" + repository)
+	oq := bleve.NewQueryStringQuery("organization:" + organization)
+	pq := bleve.NewQueryStringQuery("project:" + project)
+	rq := bleve.NewQueryStringQuery("repository:" + repository)
 	q1 := bleve.NewConjunctionQuery(oq, pq, rq)
 
 	q2 := bleve.NewDisjunctionQuery()
 	for _, ref := range refs {
-		rq := bleve.NewQueryStringQuery("metadata.refs:" + ref)
+		rq := bleve.NewQueryStringQuery("refs:" + ref)
 		q2.AddQuery(rq)
 	}
 	s := bleve.NewSearchRequest(bleve.NewConjunctionQuery(q1, q2))
@@ -396,7 +389,7 @@ func (b *BleveIndexer) searchByRefs(organization string, project string, reposit
 }
 
 func (b *BleveIndexer) searchByOrganization(organization string, callback func(searchResult *bleve.SearchResult)) error {
-	q := bleve.NewQueryStringQuery("metadata.organization:" + organization)
+	q := bleve.NewQueryStringQuery("organization:" + organization)
 
 	s := bleve.NewSearchRequest(q)
 	s.From = 0
@@ -406,8 +399,8 @@ func (b *BleveIndexer) searchByOrganization(organization string, callback func(s
 }
 
 func (b *BleveIndexer) searchByProject(organization string, project string, callback func(searchResult *bleve.SearchResult)) error {
-	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
-	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
+	oq := bleve.NewQueryStringQuery("organization:" + organization)
+	pq := bleve.NewQueryStringQuery("project:" + project)
 	q := bleve.NewConjunctionQuery(oq, pq)
 
 	s := bleve.NewSearchRequest(q)
@@ -418,9 +411,9 @@ func (b *BleveIndexer) searchByProject(organization string, project string, call
 }
 
 func (b *BleveIndexer) searchByRepository(organization string, project string, repository string, callback func(searchResult *bleve.SearchResult)) error {
-	oq := bleve.NewQueryStringQuery("metadata.organization:" + organization)
-	pq := bleve.NewQueryStringQuery("metadata.project:" + project)
-	rq := bleve.NewQueryStringQuery("metadata.repository:" + repository)
+	oq := bleve.NewQueryStringQuery("organization:" + organization)
+	pq := bleve.NewQueryStringQuery("project:" + project)
+	rq := bleve.NewQueryStringQuery("repository:" + repository)
 	q := bleve.NewConjunctionQuery(oq, pq, rq)
 
 	s := bleve.NewSearchRequest(q)
@@ -475,14 +468,14 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 	s := bleve.NewSearchRequest(q)
 
 	//
-	// organizationFacet := bleve.NewFacetRequest("metadata.organization", 5)
+	// organizationFacet := bleve.NewFacetRequest("organization", 5)
 	// s.AddFacet("organization", organizationFacet)
 	fullRefsFacet := bleve.NewFacetRequest("fullRefs", 100)
-	extFacet := bleve.NewFacetRequest("metadata.ext", 100)
-	organizationFacet := bleve.NewFacetRequest("metadata.organization", 100)
-	projectFacet := bleve.NewFacetRequest("metadata.project", 100)
-	repositoryFacet := bleve.NewFacetRequest("metadata.repository", 100)
-	refsFacet := bleve.NewFacetRequest("metadata.refs", 100)
+	extFacet := bleve.NewFacetRequest("ext", 100)
+	organizationFacet := bleve.NewFacetRequest("organization", 100)
+	projectFacet := bleve.NewFacetRequest("project", 100)
+	repositoryFacet := bleve.NewFacetRequest("repository", 100)
+	refsFacet := bleve.NewFacetRequest("refs", 100)
 
 	s.AddFacet("fullRefs", fullRefsFacet)
 	s.AddFacet("ext", extFacet)
@@ -491,7 +484,7 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 	s.AddFacet("repository", repositoryFacet)
 	s.AddFacet("refs", refsFacet)
 
-	s.Fields = []string{"blob", "fullRefs", "metadata.organization", "metadata.project", "metadata.repository", "metadata.refs", "metadata.path", "metadata.ext"}
+	s.Fields = []string{"blob", "fullRefs", "organization", "project", "repository", "refs", "path", "ext"}
 	s.Highlight = bleve.NewHighlight()
 
 	s.From = page * 10
@@ -529,8 +522,6 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 
 		fileIndex := docToFileIndex(doc)
 
-		s := Source{Blob: fileIndex.Blob, Metadata: fileIndex.Metadata}
-
 		// find highlighted words
 		hitWordSet := make(map[string]struct{})
 		for hitWord, _ := range hit.Locations["content"] {
@@ -538,14 +529,14 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 		}
 
 		// get the file text
-		gitRepo, err := getGitRepo(b.reader, &s)
+		gitRepo, err := getGitRepo(b.reader, fileIndex)
 		if err != nil {
 			log.Println("Already deleted from git repository? ID:" + hit.ID)
 			continue
 		}
 
 		// make preview
-		preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
+		preview := gitRepo.FilterBlob(fileIndex.Blob, func(line string) bool {
 			for k, _ := range hitWordSet {
 				if strings.Contains(strings.ToLower(line), strings.ToLower(k)) {
 					return true
@@ -566,7 +557,7 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 		}
 		// log.Println(preview)
 
-		h := Hit{Source: s, Preview: preview, Keyword: keyword}
+		h := Hit{Metadata: fileIndex.Metadata, Preview: preview, Keyword: keyword}
 		list = append(list, h)
 	}
 
@@ -609,7 +600,7 @@ func appendFilters(q query.Query, list []string, key string) query.Query {
 	for i := range list {
 		val := list[i]
 		if val != "" {
-			filter := bleve.NewQueryStringQuery("metadata." + key + ":" + val)
+			filter := bleve.NewQueryStringQuery(key + ":" + val)
 			filters = append(filters, filter)
 		}
 	}
@@ -705,10 +696,10 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 	for i := range doc.Fields {
 		f := doc.Fields[i]
-		name := strings.Split(f.Name(), ".")
+		name := f.Name()
 		value := string(f.Value())
 
-		switch name[0] {
+		switch name {
 		case "blob":
 			fileIndex.Blob = value
 
@@ -722,25 +713,28 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 		case "content":
 			fileIndex.Content = value
 
-		case "metadata":
-			switch name[1] {
-			case "organization":
-				fileIndex.Metadata.Organization = value
-			case "project":
-				fileIndex.Metadata.Project = value
-			case "repository":
-				fileIndex.Metadata.Repository = value
-			case "refs":
-				pos := f.ArrayPositions()[0]
-				_, ok := refsMap[pos]
-				if !ok {
-					refsMap[pos] = value
-				}
-			case "path":
-				fileIndex.Metadata.Path = value
-			case "ext":
-				fileIndex.Metadata.Ext = value
+		case "organization":
+			fileIndex.Metadata.Organization = value
+
+		case "project":
+			fileIndex.Metadata.Project = value
+
+		case "repository":
+			fileIndex.Metadata.Repository = value
+
+		case "refs":
+			pos := f.ArrayPositions()[0]
+			_, ok := refsMap[pos]
+			if !ok {
+				refsMap[pos] = value
 			}
+
+		case "path":
+			fileIndex.Metadata.Path = value
+
+		case "ext":
+			fileIndex.Metadata.Ext = value
+
 		}
 	}
 

@@ -110,9 +110,9 @@ class SearchView extends React.Component<Props, void> {
                         <Grid>
                             {result.hits.map(x => {
                                 return (
-                                    <Row key={x._source.blob}>
+                                    <Row key={x.blob}>
                                         <Col size='is12'>
-                                            <FileContent metadata={x._source.metadata} keyword={x.keyword} preview={x.preview} />
+                                            <FileContent metadata={x} keyword={x.keyword} preview={x.preview} />
                                         </Col>
                                     </Row>
                                 );

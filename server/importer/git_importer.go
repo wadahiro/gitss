@@ -183,9 +183,8 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 				}
 
 				fileIndex := indexer.FileIndex{
-					Blob:    fileEntry.Blob,
-					Content: content,
 					Metadata: indexer.Metadata{
+						Blob:         fileEntry.Blob,
 						Organization: r.Organization,
 						Project:      r.Project,
 						Repository:   r.Repository,
@@ -193,6 +192,7 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 						Path:         fileEntry.Path,
 						Ext:          indexer.GetExt(fileEntry.Path),
 					},
+					Content: content,
 				}
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
@@ -245,24 +245,24 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 					}
 
 					fileIndex := indexer.FileIndex{
-						Blob:    fileEntry.Blob,
-						Content: content,
 						Metadata: indexer.Metadata{
+							Blob:         fileEntry.Blob,
 							Organization: r.Organization,
 							Project:      r.Project,
 							Repository:   r.Repository,
 							Refs:         []string{branchName},
 							Path:         fileEntry.Path,
-							Ext:         indexer.GetExt(fileEntry.Path),
+							Ext:          indexer.GetExt(fileEntry.Path),
 						},
+						Content: content,
 					}
 					// Add index
 					queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 
 				} else {
 					fileIndex := indexer.FileIndex{
-						Blob: fileEntry.Blob,
 						Metadata: indexer.Metadata{
+							Blob:         fileEntry.Blob,
 							Organization: r.Organization,
 							Project:      r.Project,
 							Repository:   r.Repository,
