@@ -1,5 +1,7 @@
 # GITSS
 
+[![wercker status](https://app.wercker.com/status/8bb1c52941262ac810ef6219e02937cf/s/develop "wercker status")](https://app.wercker.com/project/byKey/8bb1c52941262ac810ef6219e02937cf)
+
 - [About](#about)
 - [How to use](#how-to-use)
 - [Development](#development)
