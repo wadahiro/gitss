@@ -18,7 +18,7 @@ import (
 	"github.com/wadahiro/gitss/server/indexer"
 )
 
-func initRouter(config config.Config, indexer indexer.Indexer) {
+func initRouter(config *config.Config, indexer indexer.Indexer) {
 	if !config.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}

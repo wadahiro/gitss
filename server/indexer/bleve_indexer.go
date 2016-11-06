@@ -170,7 +170,7 @@ type BleveIndexer struct {
 	debug  bool
 }
 
-func NewBleveIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
+func NewBleveIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer {
 	indexPath := config.DataDir + "/bleve_index"
 	index, err := bleve.Open(indexPath)
 
@@ -347,6 +347,7 @@ func (b *BleveIndexer) _index(f *FileIndex, batch *bleve.Batch) error {
 	if batch == nil {
 		return b.client.Index(getDocId(f), f)
 	} else {
+		fmt.Println(getDocId(f))
 		return batch.Index(getDocId(f), f)
 	}
 }

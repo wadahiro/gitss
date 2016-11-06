@@ -21,13 +21,13 @@ import (
 )
 
 type GitImporter struct {
-	config  config.Config
+	config  *config.Config
 	indexer indexer.Indexer
 	reader  *repo.GitRepoReader
 	debug   bool
 }
 
-func NewGitImporter(config config.Config, indexer indexer.Indexer) *GitImporter {
+func NewGitImporter(config *config.Config, indexer indexer.Indexer) *GitImporter {
 	r := repo.NewGitRepoReader(config)
 	return &GitImporter{config: config, indexer: indexer, reader: r, debug: config.Debug}
 }
@@ -37,7 +37,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	repo, err := g.reader.CloneGitRepo(organization, project, url)
 	if err != nil {
-		log.Printf("Not found the repository: %s %s %s %+v\n", organization, project, url, err)
+		log.Printf("Not found the repository: %s:%s/%s %+v\n", organization, project, url, err)
 		return
 	}
 
@@ -47,7 +47,11 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	branches, _ := repo.GetBranches()
 
-	refs, err := g.config.GetRefs(organization, project, repo.Repository)
+	refs, ok := g.config.GetRefs(organization, project, repo.Repository)
+	if !ok {
+		log.Printf("Not found repository setting. %s:%s/%s \n", organization, project, repo.Repository)
+		return
+	}
 
 	log.Printf("Start indexing for %s:%s/%s %v -> %v\n", organization, project, repo.Repository, branches, refs)
 
@@ -87,12 +91,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName string) {
 	latestCommitId, _ := repo.GetBranchCommitID(branchName)
-	indexedCommitId, notFound := g.config.GetIndexedCommitID(config.LatestIndex{
-		Organization: repo.Organization,
-		Project:      repo.Project,
-		Repository:   repo.Repository,
-		Ref:          branchName,
-	})
+	indexedCommitId, ok := g.config.GetIndexedCommitID(repo.Organization, repo.Project, repo.Repository, branchName)
 
 	tag := getLoggingTag(repo, branchName, latestCommitId)
 
@@ -103,7 +102,7 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 
 	queue := make(chan indexer.FileIndexOperation, 100)
 
-	if notFound {
+	if !ok {
 		fmt.Printf("New Indexing start: %s\n", tag)
 		g.CreateBranchIndex(queue, repo, branchName, latestCommitId)
 	} else {
@@ -148,12 +147,7 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 	}
 
 	// Save config after index completed
-	g.config.UpdateLatestIndex(url, config.LatestIndex{
-		Organization: repo.Organization,
-		Project:      repo.Project,
-		Repository:   repo.Repository,
-		Ref:          branchName,
-	}, latestCommitId)
+	g.config.UpdateLatestIndex(url, repo.Organization, repo.Project, repo.Repository, branchName, latestCommitId)
 }
 
 func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, latestCommitId string) error {

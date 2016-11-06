@@ -26,27 +26,27 @@ interface Props {
 
 class SearchView extends React.Component<Props, void> {
     handleExtToggle = (term: string) => {
-        Actions.search(this.props.dispatch, this.props.query, mergeTerm('x', this.props.filterParams, term));
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('x', this.props.filterParams, term));
     };
 
     handleOrganizationToggle = (term: string) => {
-        Actions.search(this.props.dispatch, this.props.query, mergeTerm('o', this.props.filterParams, term));
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('o', this.props.filterParams, term));
     };
 
     handleProjectToggle = (term: string) => {
-        Actions.search(this.props.dispatch, this.props.query, mergeTerm('p', this.props.filterParams, term));
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('p', this.props.filterParams, term));
     };
 
     handleRepositoryToggle = (term: string) => {
-        Actions.search(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
     };
 
     handleRefsToggle = (term: string) => {
-        Actions.search(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
     };
 
     showPage = (page: number) => {
-        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, page);
+        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, page);
     };
 
     next = () => {
@@ -55,8 +55,7 @@ class SearchView extends React.Component<Props, void> {
         if (next >= pageSize) {
             next = pageSize - 1;
         }
-
-        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, next);
+        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, next);
     };
 
     prev = () => {
@@ -64,7 +63,7 @@ class SearchView extends React.Component<Props, void> {
         if (next < 0) {
             next = 0;
         }
-        Actions.search(this.props.dispatch, this.props.query, this.props.filterParams, next);
+        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, next);
     };
 
     render() {

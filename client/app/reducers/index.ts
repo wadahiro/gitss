@@ -153,6 +153,7 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
                 filterParams: action.payload.filterParams || {}
             });
         case 'SEARCH':
+        case 'SEARCH_FILTER':
             const searchResult: SearchResult = action.payload.result;
 
             let facets = {
@@ -161,7 +162,7 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
             };
             let filterParams = searchResult.filterParams;
 
-            if (searchResult.query !== '' && searchResult.query === state.lastQuery) {
+            if (action.type === 'SEARCH_FILTER') {
                 // same query, so don't change facet view!
                 facets = state.facets;
             } else {

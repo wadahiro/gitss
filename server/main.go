@@ -26,7 +26,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "GitSS"
-	app.Usage = "Code Search Server for Git repositories."
+	app.Usage = "Git Source Search."
 	app.Version = Version
 	app.Author = "Hiroyuki Wada"
 	app.Email = "wadahiro@gmail.com"
@@ -35,17 +35,37 @@ func main() {
 			Name:   "server",
 			Usage:  "Run GitSS",
 			Action: RunServer,
+			Flags: []cli.Flag{
+				cli.Int64Flag{
+					Name:  "sizeLimit",
+					Value: 1024 * 1024, //1MB
+					Usage: "Indexing limit file size",
+				},
+			},
 		},
 		{
 			Name:      "sync",
 			Usage:     "Sync all git repositories",
 			ArgsUsage: "",
 			Action:    SyncAll,
+			Flags: []cli.Flag{
+				cli.Int64Flag{
+					Name:  "sizeLimit",
+					Value: 1024 * 1024, //1MB
+					Usage: "Indexing limit file size",
+				},
+			},
+		},
+		{
+			Name:      "add",
+			Usage:     "Add a git repository",
+			ArgsUsage: "",
+			Action:    AddGitRepository,
 		},
 		{
 			Name:      "import",
-			Usage:     "Import a Git repository",
-			ArgsUsage: "[project name] [git repository url]",
+			Usage:     "Import a git repository",
+			ArgsUsage: "[organization name] [project name] [git repository url]",
 			Action:    ImportGitRepository,
 			Flags: []cli.Flag{
 				cli.Int64Flag{
@@ -115,6 +135,25 @@ func SyncAll(c *cli.Context) {
 	service.RunSync(config, importer)
 }
 
+func AddGitRepository(c *cli.Context) {
+	debugMode := isDebugMode()
+
+	if len(c.Args()) != 3 {
+		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
+	}
+
+	config := config.NewConfig(c, debugMode)
+
+	organization := c.Args()[0]
+	projectName := c.Args()[1]
+	gitRepoUrl := c.Args()[2]
+
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 func ImportGitRepository(c *cli.Context) {
 	debugMode := isDebugMode()
 
@@ -140,6 +179,8 @@ func ImportGitRepository(c *cli.Context) {
 	log.Println("SIZE_LIMIT: ", config.SizeLimit)
 	log.Println("--------------------------------------------------------")
 
+	config.AddRepositorySetting(organization, projectName, gitRepoUrl)
+
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
 	importer := importer.NewGitImporter(config, indexer)
@@ -150,7 +191,7 @@ func isDebugMode() bool {
 	return BuildTarget == "develop"
 }
 
-func newIndexer(config config.Config, reader *repo.GitRepoReader) indexer.Indexer {
+func newIndexer(config *config.Config, reader *repo.GitRepoReader) indexer.Indexer {
 	switch config.IndexerType {
 	case "bleve":
 		return indexer.NewBleveIndexer(config, reader)

@@ -8,6 +8,7 @@ import WebApi from '../api/WebApi';
 export type Actions =
     SetQuery |
     Search |
+    SearchFilter |
     SearchStart
     ;
 
@@ -34,6 +35,13 @@ export interface Search extends Action {
     }
 }
 
+export interface SearchFilter extends Action {
+    type: 'SEARCH_FILTER';
+    payload: {
+        result: any;
+    }
+}
+
 export interface SearchStart extends Action {
     type: 'SEARCH_START';
     payload: {
@@ -42,6 +50,14 @@ export interface SearchStart extends Action {
 }
 
 export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
+    _search('SEARCH', dispatch, query, filterParams, page);
+}
+
+export function searchFilter(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
+    _search('SEARCH_FILTER', dispatch, query, filterParams, page);
+}
+
+function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
     dispatch({
         type: 'SEARCH_START',
         payload: {
@@ -58,7 +74,7 @@ export function search(dispatch: Dispatch<Search>, query: string, filterParams?:
         .then(res => {
             // console.log(res);
             dispatch({
-                type: 'SEARCH',
+                type: searchType,
                 payload: {
                     result: res
                 }

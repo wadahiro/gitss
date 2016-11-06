@@ -25,7 +25,7 @@ type ESIndexer struct {
 
 // var LINE_TAG = regexp.MustCompile(`^\[([0-9]+)\]\s(.*)`)
 
-func NewESIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
+func NewESIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer {
 	client, err := elastic.NewClient(elastic.SetURL())
 	if err != nil {
 		panic(err)
