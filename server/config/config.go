@@ -27,7 +27,7 @@ type Config struct {
 	SizeLimit   int64
 	Schedule    string
 	Debug       bool
-	settings    []OrganizationSetting
+	settings    []SyncSetting
 }
 
 type LatestIndex struct {
@@ -83,7 +83,22 @@ func (c *Config) refreshSettings() error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	list := []OrganizationSetting{}
+	c.syncSCM()
+	c.reloadSettings()
+
+	return nil
+}
+
+func (c *Config) syncSCM() error {
+	for i := range c.settings {
+		oSetting := c.settings[i]
+		oSetting.SyncSCM()
+	}
+	return nil
+}
+
+func (c *Config) reloadSettings() error {
+	list := []SyncSetting{}
 
 	files, err := filepath.Glob(c.ConfDir + "/*.json")
 	if err != nil {
@@ -99,7 +114,14 @@ func (c *Config) refreshSettings() error {
 		var organizationSetting OrganizationSetting
 		json.Unmarshal(b, &organizationSetting)
 
-		list = append(list, organizationSetting)
+		var setting SyncSetting
+		if organizationSetting.Scm["type"] == "bitbucket" {
+			setting = NewBitbucketOrganizationSetting(organizationSetting)
+		} else {
+			setting = SyncSetting(&organizationSetting)
+		}
+
+		list = append(list, setting)
 	}
 
 	// cache update
@@ -108,20 +130,146 @@ func (c *Config) refreshSettings() error {
 	return nil
 }
 
-func (c *Config) GetSettings() []OrganizationSetting {
+func (c *Config) GetSettings() []SyncSetting {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 	return c.settings
 }
 
-type OrganizationSetting struct {
-	Name     string           `json:"name"`
-	Projects []ProjectSetting `json:"projects"`
+type SyncSetting interface {
+	GetName() string
+	GetProjects() []ProjectSetting
+	GetSCM() map[string]string
+	SyncSCM() error
+	AddRepository(project string, repositoryUrl string) error
+	DeleteRefs(project string, repository string, removeRefs []string)
+	FindProjectSetting(project string) (*ProjectSetting, bool)
+	FindRepositorySetting(project string, repository string) (*RepositorySetting, bool)
+	FindRefSetting(project string, repository string, refs string) (*RefSetting, bool)
+	JSON() (string, error)
 }
+
+type OrganizationSetting struct {
+	Name     string            `json:"name"`
+	Projects []ProjectSetting  `json:"projects"`
+	Scm      map[string]string `json:"scm,omitempty"`
+}
+
+func (o *OrganizationSetting) GetName() string {
+	return o.Name
+}
+
+func (o *OrganizationSetting) GetProjects() []ProjectSetting {
+	return o.Projects
+}
+
+func (o *OrganizationSetting) GetSCM() map[string]string {
+	return o.Scm
+}
+
+func (o *OrganizationSetting) SyncSCM() error {
+	return nil
+}
+
+func (o *OrganizationSetting) AddRepository(project string, url string) error {
+	projectSetting, ok := o.FindProjectSetting(project)
+	if !ok {
+		projectSetting = &ProjectSetting{
+			Name: project,
+			Repositories: []RepositorySetting{
+				RepositorySetting{
+					Url:  url,
+					Refs: []RefSetting{},
+				},
+			},
+		}
+		o.Projects = append(o.Projects, *projectSetting)
+		return nil
+	}
+
+	repositorySetting, ok := o.FindRepositorySetting(project, repoUrlToName(url))
+	if !ok {
+		repositorySetting = &RepositorySetting{
+			Url:  url,
+			Refs: []RefSetting{},
+		}
+		projectSetting.Repositories = append(projectSetting.Repositories, *repositorySetting)
+		return nil
+
+	} else {
+		return errors.Errorf("The repository already exists %s:%s/%s", o.Name, project, repoUrlToName(url))
+	}
+}
+
+func (o *OrganizationSetting) FindProjectSetting(project string) (*ProjectSetting, bool) {
+	for i := range o.Projects {
+		if o.Projects[i].Name == project {
+			return &o.Projects[i], true
+		}
+	}
+	return nil, false
+}
+
+func (o *OrganizationSetting) FindRepositorySetting(project string, repository string) (*RepositorySetting, bool) {
+	projectSetting, ok := o.FindProjectSetting(project)
+	if ok {
+		for i := range projectSetting.Repositories {
+			if projectSetting.Repositories[i].GetName() == repository {
+				return &projectSetting.Repositories[i], true
+			}
+		}
+	}
+	return nil, false
+}
+
+func (o *OrganizationSetting) FindRefSetting(project string, repository string, ref string) (*RefSetting, bool) {
+	repositorySetting, ok := o.FindRepositorySetting(project, repository)
+	if ok {
+		for i := range repositorySetting.Refs {
+			refSetting := &repositorySetting.Refs[i]
+			if refSetting.Name == ref {
+				return refSetting, true
+			}
+		}
+	}
+	return &RefSetting{}, false
+}
+
+func (o *OrganizationSetting) DeleteRefs(project string, repository string, removeRefs []string) {
+	repositorySetting, ok := o.FindRepositorySetting(project, repository)
+	if ok {
+		newRefSettings := []RefSetting{}
+		for i := range repositorySetting.Refs {
+			ref := repositorySetting.Refs[i]
+
+			found := false
+			for _, removeRef := range removeRefs {
+				if ref.Name == removeRef {
+					found = true
+					break
+				}
+			}
+			if !found {
+				newRefSettings = append(newRefSettings, repositorySetting.Refs[i])
+			}
+		}
+		repositorySetting.Refs = newRefSettings
+	}
+}
+
+func (o *OrganizationSetting) JSON() (string, error) {
+	b, err := json.MarshalIndent(o, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(b), err
+}
+
 type ProjectSetting struct {
 	Name         string              `json:"name"`
 	Repositories []RepositorySetting `json:"repositories"`
 }
+
 type RepositorySetting struct {
 	Url  string       `json:"url"`
 	name string       `json:"-"`
@@ -157,80 +305,50 @@ type RefSetting struct {
 	Latest string `json:"latest"`
 }
 
-func (c *Config) findOrganizationSetting(name string) (*OrganizationSetting, bool) {
+func (c *Config) findSyncSetting(organization string) (SyncSetting, bool) {
 	for i := range c.settings {
-		if c.settings[i].Name == name {
-			return &c.settings[i], true
+		if c.settings[i].GetName() == organization {
+			return c.settings[i], true
 		}
 	}
-	return &OrganizationSetting{}, false
-}
-
-func (c *Config) findProjectSetting(organization string, project string) (*ProjectSetting, bool) {
-	organizationSetting, ok := c.findOrganizationSetting(organization)
-	if ok {
-		for i := range organizationSetting.Projects {
-			if organizationSetting.Projects[i].Name == project {
-				return &organizationSetting.Projects[i], true
-			}
-		}
-	}
-	return &ProjectSetting{}, false
-}
-
-func (c *Config) findRepositorySetting(organization string, project string, repository string) (*RepositorySetting, bool) {
-	projectSetting, ok := c.findProjectSetting(organization, project)
-	if ok {
-		for i := range projectSetting.Repositories {
-			if projectSetting.Repositories[i].GetName() == repository {
-				return &projectSetting.Repositories[i], true
-			}
-		}
-	}
-	return &RepositorySetting{}, false
-}
-
-func (c *Config) findRefSetting(organization string, project string, repository string, ref string) (*RefSetting, bool) {
-	repositorySetting, ok := c.findRepositorySetting(organization, project, repository)
-	if ok {
-		for i := range repositorySetting.Refs {
-			refSetting := &repositorySetting.Refs[i]
-			if refSetting.Name == ref {
-				return refSetting, true
-			}
-		}
-	}
-	return &RefSetting{}, false
+	return nil, false
 }
 
 func (c *Config) GetRefs(organization string, project string, repository string) ([]RefSetting, bool) {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	repositorySetting, ok := c.findRepositorySetting(organization, project, repository)
+	syncSetting, ok := c.findSyncSetting(organization)
 	if ok {
-		return repositorySetting.Refs, true
+		repositorySetting, ok := syncSetting.FindRepositorySetting(project, repository)
+		if ok {
+			return repositorySetting.Refs, true
+		}
 	}
 
-	return []RefSetting{}, false
+	return nil, false
 }
 
 func (c *Config) GetIndexedCommitID(organization string, project string, repository string, ref string) (string, bool) {
-	refSetting, ok := c.findRefSetting(organization, project, repository, ref)
+	syncSetting, ok := c.findSyncSetting(organization)
 	if ok {
-		return refSetting.Latest, true
+		refSetting, ok := syncSetting.FindRefSetting(project, repository, ref)
+		if ok {
+			return refSetting.Latest, true
+		}
 	}
 	return "", false
 }
 
-func (c *Config) AddRepositorySetting(organization string, project string, url string) error {
+func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	organizationSetting, ok := c.findOrganizationSetting(organization)
+	setting, ok := c.findSyncSetting(organization)
 	if !ok {
-		organizationSetting = &OrganizationSetting{
+		setting = &OrganizationSetting{
 			Name: organization,
+			Scm: scmOptions,
 			Projects: []ProjectSetting{
 				ProjectSetting{
 					Name: project,
@@ -243,34 +361,12 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 				},
 			},
 		}
-		c.settings = append(c.settings, *organizationSetting)
+		c.settings = append(c.settings, setting)
 
 	} else {
-		projectSetting, ok := c.findProjectSetting(organization, project)
-		if !ok {
-			projectSetting = &ProjectSetting{
-				Name: project,
-				Repositories: []RepositorySetting{
-					RepositorySetting{
-						Url:  url,
-						Refs: []RefSetting{},
-					},
-				},
-			}
-			organizationSetting.Projects = append(organizationSetting.Projects, *projectSetting)
-
-		} else {
-			repositorySetting, ok := c.findRepositorySetting(organization, project, repoUrlToName(url))
-			if !ok {
-				repositorySetting = &RepositorySetting{
-					Url: url,
-					Refs: []RefSetting{},
-				}
-				projectSetting.Repositories = append(projectSetting.Repositories, *repositorySetting)
-
-			} else {
-				return errors.Errorf("Already exists %s:%s/%s", organization, project, repoUrlToName(url))
-			}
+		err := setting.AddRepository(project, url)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -285,55 +381,44 @@ func (c *Config) UpdateLatestIndex(url string, organization string, project stri
 	defer fileMutex.Unlock()
 
 	// update case
-	refSetting, ok := c.findRefSetting(organization, project, repository, ref)
+	syncSetting, ok := c.findSyncSetting(organization)
 	if ok {
-		refSetting.Latest = commitId
-	} else {
-		// add ref case
-		repositorySetting, ok := c.findRepositorySetting(organization, project, repository)
+		refSetting, ok := syncSetting.FindRefSetting(project, repository, ref)
 		if ok {
-			repositorySetting.Refs = append(repositorySetting.Refs, RefSetting{Name: ref, Latest: commitId})
+			refSetting.Latest = commitId
+		} else {
+			// add ref case
+			repositorySetting, ok := syncSetting.FindRepositorySetting(project, repository)
+			if ok {
+				repositorySetting.Refs = append(repositorySetting.Refs, RefSetting{Name: ref, Latest: commitId})
+			}
 		}
+		// write
+		return c.writeSetting(organization)
 	}
-
-	// write
-	return c.writeSetting(organization)
+	return nil
 }
 
 func (c *Config) DeleteLatestIndexRefs(organization string, project string, repository string, removeRefs []string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	repositorySetting, ok := c.findRepositorySetting(organization, project, repository)
+	syncSetting, ok := c.findSyncSetting(organization)
 	if ok {
-		newRefSettings := []RefSetting{}
-		for i := range repositorySetting.Refs {
-			ref := repositorySetting.Refs[i]
-
-			found := false
-			for _, removeRef := range removeRefs {
-				if ref.Name == removeRef {
-					found = true
-					break
-				}
-			}
-			if !found {
-				newRefSettings = append(newRefSettings, repositorySetting.Refs[i])
-			}
-		}
-		repositorySetting.Refs = newRefSettings
-
+		syncSetting.DeleteRefs(project, repository, removeRefs)
 		return c.writeSetting(organization)
 	}
+
 	return errors.Errorf("Not found repository setting for %s:%s/%s", organization, project, repository)
 }
 
 func (c *Config) writeSetting(organization string) error {
-	organizationSetting, ok := c.findOrganizationSetting(organization)
+	setting, ok := c.findSyncSetting(organization)
 	if ok {
-		content, _ := json.MarshalIndent(organizationSetting, "", "  ")
+		content, _ := json.MarshalIndent(setting, "", "  ")
 		fileName := fmt.Sprintf("%s/%s.json", c.ConfDir, organization)
 		return ioutil.WriteFile(fileName, content, os.ModePerm)
+	} else {
+		return errors.Errorf("Not found organization: %s", organization)
 	}
-	return errors.Errorf("Not found organization setting for %s", organization)
 }

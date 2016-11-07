@@ -61,6 +61,18 @@ func main() {
 			Usage:     "Add a git repository",
 			ArgsUsage: "",
 			Action:    AddGitRepository,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "type",
+					Value: "",
+					Usage: "Currently supported 'bitbucket' only",
+				},
+				cli.StringFlag{
+					Name:  "scm-url",
+					Value: "",
+					Usage: "SCM URL",
+				},
+			},
 		},
 		{
 			Name:      "import",
@@ -148,7 +160,16 @@ func AddGitRepository(c *cli.Context) {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
-	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl)
+	scmType := c.String("type")
+	scmUrl := c.String("scm-url")
+
+	scmOptions := make(map[string]string)
+	if scmType != "" {
+		scmOptions["type"] = scmType
+		scmOptions["url"] = scmUrl
+	}
+
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, scmOptions)
 	if err != nil {
 		log.Println(err)
 	}
@@ -179,7 +200,7 @@ func ImportGitRepository(c *cli.Context) {
 	log.Println("SIZE_LIMIT: ", config.SizeLimit)
 	log.Println("--------------------------------------------------------")
 
-	config.AddRepositorySetting(organization, projectName, gitRepoUrl)
+	config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
 
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)

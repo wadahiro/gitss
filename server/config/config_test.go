@@ -33,33 +33,34 @@ func TestLineScanner(t *testing.T) {
 
 	defer os.RemoveAll("./tmp")
 
-	s, _ := c.GetSettings()
+	c.reloadSettings()
+	s := c.GetSettings()
 
 	if len(s) != 1 {
 		t.Errorf("organization length should be 1, %v", len(s))
 	}
 
-	if s[0].Name != "test" {
-		t.Errorf("organization name should be test, %v", s[0].Name)
+	if s[0].GetName() != "test" {
+		t.Errorf("organization name should be test, %v", s[0].GetName())
 	}
 
-	if len(s[0].Projects) != 1 {
-		t.Errorf("project length should be 1, %v", s[0].Projects)
+	if len(s[0].GetProjects()) != 1 {
+		t.Errorf("project length should be 1, %v", s[0].GetProjects())
 	}
 
-	if s[0].Projects[0].Name != "myproject" {
-		t.Errorf("project name should be myproject, %v", s[0].Projects[0].Name)
+	if s[0].GetProjects()[0].Name != "myproject" {
+		t.Errorf("project name should be myproject, %v", s[0].GetProjects()[0].Name)
 	}
 
-	if len(s[0].Projects[0].Repositories) != 1 {
-		t.Errorf("repository length should be 1, %v", len(s[0].Projects[0].Repositories))
+	if len(s[0].GetProjects()[0].Repositories) != 1 {
+		t.Errorf("repository length should be 1, %v", len(s[0].GetProjects()[0].Repositories))
 	}
 
-	if s[0].Projects[0].Repositories[0].GetName() != "samplerepo" {
-		t.Errorf("repository name should be samplerepo, %v", s[0].Projects[0].Repositories[0].GetName())
+	if s[0].GetProjects()[0].Repositories[0].GetName() != "samplerepo" {
+		t.Errorf("repository name should be samplerepo, %v", s[0].GetProjects()[0].Repositories[0].GetName())
 	}
 
-	if len(s[0].Projects[0].Repositories[0].Refs) != 2 {
-		t.Errorf("repository length should be 2, %v", len(s[0].Projects[0].Repositories[0].Refs))
+	if len(s[0].GetProjects()[0].Repositories[0].Refs) != 2 {
+		t.Errorf("repository length should be 2, %v", len(s[0].GetProjects()[0].Repositories[0].Refs))
 	}
 }

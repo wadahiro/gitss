@@ -45,26 +45,25 @@ func RunSyncScheduler(config *config.Config, importer *importer.GitImporter) {
 func RunSync(config *config.Config, importer *importer.GitImporter) {
 	config.Sync()
 
-	organizations := config.GetSettings()
+	settings := config.GetSettings()
 
 	workers := util.GenWorkers(2)
 	var wg sync.WaitGroup
 
-	for i := range organizations {
-		organization := organizations[i]
+	for i := range settings {
+		setting := settings[i]
 
-		for j := range organization.Projects {
-			project := organization.Projects[j]
+		for _, project := range setting.GetProjects() {
 
 			for k := range project.Repositories {
 				repository := project.Repositories[k]
 
-				log.Printf("Sync for %s:%s/%s\n", organization.Name, project.Name, repository.GetName())
+				log.Printf("Sync for %s:%s/%s\n", setting.GetName(), project.Name, repository.GetName())
 
 				wg.Add(1)
 				workers <- func() {
 					defer wg.Done()
-					importer.Run(organization.Name, project.Name, repository.Url)
+					importer.Run(setting.GetName(), project.Name, repository.Url)
 				}
 			}
 		}
