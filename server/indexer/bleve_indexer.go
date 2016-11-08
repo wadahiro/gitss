@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 	// "strconv"
+	"time"
 
 	"sort"
 	"strings"
@@ -124,6 +124,18 @@ var MAPPING = []byte(`{
 					"fields": [{
 						"type": "text",
 						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"size": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "number",
 						"store": true,
 						"index": true,
 						"include_term_vectors": true,
@@ -742,6 +754,23 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 		case "ext":
 			fileIndex.Metadata.Ext = value
+
+		case "size":
+			nf, ok := f.(*document.NumericField)
+
+			var size int64 = -1
+
+			if ok {
+				fSize, err := nf.Number()
+
+				log.Println("SSSS:", fSize)
+
+				if err == nil {
+					size = int64(fSize)
+				}
+			}
+
+			fileIndex.Metadata.Size = size
 		}
 	}
 

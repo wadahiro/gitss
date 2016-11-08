@@ -45,6 +45,7 @@ type Metadata struct {
 	Refs         []string `json:"refs"`
 	Path         string   `json:"path"`
 	Ext          string   `json:"ext"`
+	Size         int64    `json:"size"`
 }
 
 type SearchResult struct {

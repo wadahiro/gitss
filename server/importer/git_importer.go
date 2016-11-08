@@ -121,27 +121,32 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 
 	// batch
 	operations := []indexer.FileIndexOperation{}
+	var opsSize int64 = 0
+	var batchLimitSize int64 = 1024 * 1024 // 1MB
+
 	for op := range queue {
 		operations = append(operations, op)
-		opsSize := len(operations)
+		opsSize += op.FileIndex.Size
 
 		// show progress
-		if opsSize%100 == 0 {
+		if len(operations)%80 == 0 {
 			fmt.Printf("\n")
 		}
 		fmt.Printf(".")
 
-		if opsSize >= 1000 {
+		if opsSize >= batchLimitSize {
 			fmt.Printf("\n")
 
 			callBach(operations)
+
+			// reset
 			operations = nil
+			opsSize = 0
 		}
 	}
 
 	// remains
-	opsSize := len(operations)
-	if opsSize > 0 {
+	if len(operations) > 0 {
 		fmt.Printf("\n")
 		callBach(operations)
 	}
@@ -185,6 +190,7 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 						Refs:         []string{branchName},
 						Path:         fileEntry.Path,
 						Ext:          indexer.GetExt(fileEntry.Path),
+						Size:         fileEntry.Size,
 					},
 					Content: content,
 				}
@@ -247,6 +253,7 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 							Refs:         []string{branchName},
 							Path:         fileEntry.Path,
 							Ext:          indexer.GetExt(fileEntry.Path),
+							Size:         fileEntry.Size,
 						},
 						Content: content,
 					}
@@ -263,6 +270,7 @@ func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r
 							Refs:         []string{branchName},
 							Path:         fileEntry.Path,
 							Ext:          indexer.GetExt(fileEntry.Path),
+							Size:         fileEntry.Size,
 						},
 					}
 					// Delete index
