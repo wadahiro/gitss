@@ -71,10 +71,47 @@ class SearchView extends React.Component<Props, void> {
 
         const pageSize = Math.ceil(result.size / result.limit) || 0;
         const pageButtons = [];
-        for (let index = 0; index < pageSize; index++) {
+
+        let start = result.current - 2;
+        let end = result.current + 2;
+        const lastIndex = pageSize - 1;
+
+        if (start < 0) {
+            end += -start;
+            start = 0;
+        }
+        if (end > lastIndex) {
+            if (start > 0) {
+                start -= (end - lastIndex);
+                if (start < 0) {
+                    start = 0;
+                }
+            }
+            end = lastIndex;
+        }
+
+        if (start > 0) {
+            pageButtons.push((
+                <li>
+                    <PageButton onClick={this.showPage.bind(null, 0)}>1</PageButton>
+                </li>
+            ));
+            pageButtons.push(<li>...</li>);
+        }
+
+        for (let index = start; index <= end; index++) {
             pageButtons.push((
                 <li>
                     <PageButton onClick={this.showPage.bind(null, index)} isActive={index === result.current}>{index + 1}</PageButton>
+                </li>
+            ));
+        }
+
+        if (end < lastIndex) {
+            pageButtons.push(<li>...</li>);
+            pageButtons.push((
+                <li>
+                    <PageButton onClick={this.showPage.bind(null, lastIndex)}>{lastIndex + 1}</PageButton>
                 </li>
             ));
         }
