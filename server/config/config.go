@@ -83,18 +83,36 @@ func (c *Config) refreshSettings() error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	c.syncSCM()
+	c.SyncAllSCM()
 	c.reloadSettings()
 
 	return nil
 }
 
-func (c *Config) syncSCM() error {
+func (c *Config) SyncAllSCM() error {
 	for i := range c.settings {
-		oSetting := c.settings[i]
-		oSetting.SyncSCM()
+		setting := c.settings[i]
+		err := setting.SyncSCM()
+
+		if err == nil {
+			// write!
+			c.writeSetting(setting.GetName())
+		}
 	}
 	return nil
+}
+
+func (c *Config) SyncSCM(organization string) error {
+	setting, ok := c.findSyncSetting(organization)
+	if ok {
+		err := setting.SyncSCM()
+		if err == nil {
+			// write!
+			c.writeSetting(setting.GetName())
+		}
+		return nil
+	}
+	return errors.Errorf(`Not found setting for "%s"`, organization)
 }
 
 func (c *Config) reloadSettings() error {
@@ -168,6 +186,7 @@ func (o *OrganizationSetting) GetSCM() map[string]string {
 }
 
 func (o *OrganizationSetting) SyncSCM() error {
+	// do nothing
 	return nil
 }
 
@@ -273,7 +292,7 @@ type ProjectSetting struct {
 type RepositorySetting struct {
 	Url  string       `json:"url"`
 	name string       `json:"-"`
-	Refs []RefSetting `json:"refs"`
+	Refs []RefSetting `json:"refs,omitempty"`
 }
 
 func (r *RepositorySetting) GetName() string {
@@ -340,6 +359,27 @@ func (c *Config) GetIndexedCommitID(organization string, project string, reposit
 	return "", false
 }
 
+func (c *Config) AddSetting(organization string, scmOptions map[string]string) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	setting, ok := c.findSyncSetting(organization)
+	if ok {
+		return errors.Errorf(`The "%s" setting already exists`, organization)
+	}
+
+	setting = &OrganizationSetting{
+		Name: organization,
+		Scm:  scmOptions,
+	}
+	c.settings = append(c.settings, setting)
+
+	// write!
+	c.writeSetting(organization)
+
+	return nil
+}
+
 func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
@@ -348,7 +388,7 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 	if !ok {
 		setting = &OrganizationSetting{
 			Name: organization,
-			Scm: scmOptions,
+			Scm:  scmOptions,
 			Projects: []ProjectSetting{
 				ProjectSetting{
 					Name: project,

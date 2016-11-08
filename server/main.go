@@ -61,16 +61,35 @@ func main() {
 			Usage:     "Add a git repository",
 			ArgsUsage: "",
 			Action:    AddGitRepository,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "type",
-					Value: "",
-					Usage: "Currently supported 'bitbucket' only",
+		},
+		{
+			Name:      "bitbucket",
+			Usage:     "Bitbucket server related commands",
+			ArgsUsage: "",
+			Subcommands: []cli.Command{
+				{
+					Name:      "add",
+					Usage:     "Add a sync setting with the bitbucket server",
+					ArgsUsage: "[organization name] [bitbucket server url] [username] [password]",
+					Action:    AddBitbucketServerSetting,
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "user",
+							Value: "",
+							Usage: "Set username for the bitbucket server if you'd like to use Basic Authentication",
+						},
+						cli.StringFlag{
+							Name:  "password",
+							Value: "",
+							Usage: "Set password for the bitbucket server if you'd like to use Basic Authentication",
+						},
+					},
 				},
-				cli.StringFlag{
-					Name:  "scm-url",
-					Value: "",
-					Usage: "SCM URL",
+				{
+					Name:      "sync",
+					Usage:     "Sync a sync setting with the bitbucket server",
+					ArgsUsage: "[organization name]",
+					Action:    SyncBitbucketServerSetting,
 				},
 			},
 		},
@@ -106,7 +125,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "schedule",
-			Value: "0 */1 * * * *",
+			Value: "0 */10 * * * *",
 			Usage: "Sync schedule",
 		},
 	}
@@ -160,16 +179,50 @@ func AddGitRepository(c *cli.Context) {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
-	scmType := c.String("type")
-	scmUrl := c.String("scm-url")
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
+	if err != nil {
+		log.Println(err)
+	}
+}
 
-	scmOptions := make(map[string]string)
-	if scmType != "" {
-		scmOptions["type"] = scmType
-		scmOptions["url"] = scmUrl
+func AddBitbucketServerSetting(c *cli.Context) {
+	debugMode := isDebugMode()
+
+	if len(c.Args()) != 2 {
+		log.Fatalln("Please specified [organization name] [bitbucket server url]")
 	}
 
-	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, scmOptions)
+	config := config.NewConfig(c, debugMode)
+
+	organization := c.Args()[0]
+	bitbucketUrl := c.Args()[1]
+	user := c.String("user")
+	password := c.String("password")
+
+	scmOptions := make(map[string]string)
+	scmOptions["type"] = "bitbucket"
+	scmOptions["url"] = bitbucketUrl
+	scmOptions["user"] = user
+	scmOptions["password"] = password
+
+	err := config.AddSetting(organization, scmOptions)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func SyncBitbucketServerSetting(c *cli.Context) {
+	debugMode := isDebugMode()
+
+	if len(c.Args()) != 1 {
+		log.Fatalln("Please specified [organization name]")
+	}
+
+	config := config.NewConfig(c, debugMode)
+
+	organization := c.Args()[0]
+
+	err := config.SyncSCM(organization)
 	if err != nil {
 		log.Println(err)
 	}

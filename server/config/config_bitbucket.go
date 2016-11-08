@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type BitBucketResponse struct {
@@ -83,6 +84,8 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 	projects := make(map[string]*ProjectSetting)
 	start := 0
 
+	log.Println("Fetching projects from bitbucket server: ", b.Scm["url"])
+
 	for {
 		client := &http.Client{}
 		req, err := http.NewRequest("GET", b.Scm["url"]+"/rest/api/1.0/repos?start="+strconv.Itoa(start), nil)
@@ -92,17 +95,23 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 			log.Println(err)
 		}
 		bodyText, err := ioutil.ReadAll(resp.Body)
+
 		var res BitBucketRepositories
 		json.Unmarshal(bodyText, &res)
 
 		for i := range res.Values {
 			r := res.Values[i]
+			s := strings.Split(r.CloneURL, "@")
+
+			password, _ := b.Scm["password"]
+			password = strings.Replace(password, "@", "%40", -1)
+			cloneUrl := s[0] + ":" + password + "@" + s[1]
 
 			p, ok := projects[r.Project.Name]
 			if !ok {
-				projects[r.Project.Name] = &ProjectSetting{Name: r.Project.Name, Repositories: []RepositorySetting{RepositorySetting{Url: r.CloneURL}}}
+				projects[r.Project.Name] = &ProjectSetting{Name: r.Project.Name, Repositories: []RepositorySetting{RepositorySetting{Url: cloneUrl}}}
 			} else {
-				p.Repositories = append(projects[r.Project.Name].Repositories, RepositorySetting{Url: r.CloneURL})
+				p.Repositories = append(projects[r.Project.Name].Repositories, RepositorySetting{Url: cloneUrl})
 			}
 		}
 
@@ -119,6 +128,8 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 	for _, v := range projects {
 		b.Projects = append(b.Projects, *v)
 	}
+
+	// log.Printf("Updated: %#v\n", b)
 
 	return nil
 }
