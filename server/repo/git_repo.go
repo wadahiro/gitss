@@ -23,6 +23,7 @@ import (
 	gitm "github.com/gogits/git-module"
 	// "gopkg.in/src-d/go-git.v4"
 	// core "gopkg.in/src-d/go-git.v4/core"
+	"github.com/pkg/errors"
 )
 
 type GitRepoReader struct {
@@ -73,7 +74,7 @@ type GitRepo struct {
 	Repository   string
 	Path         string
 	gitmRepo     *gitm.Repository
-	Config *config.Config
+	Config       *config.Config
 }
 
 type Source struct {
@@ -200,7 +201,12 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 
 	for i := range rows {
 		row := rows[i]
+		pathColumns := strings.Split(row, "\t")
 		columns := strings.Fields(row)
+
+		if len(pathColumns) != 2 {
+			return errors.Errorf("Unexpected git ls-tree output. %s" + row)
+		}
 
 		blob := columns[2]
 		size, _ := strconv.ParseInt(columns[3], 10, 64)
@@ -216,28 +222,11 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 }
 
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
-	// see https://git-scm.com/docs/git-ls-tree
-	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
-	if err != nil {
-		return nil, err
-	}
-	s = strings.TrimRight(s, "\n")
-	rows := strings.Split(s, "\n")
 	list := []FileEntry{}
 
-	for i := range rows {
-		row := rows[i]
-		columns := strings.Fields(row)
-
-		blob := columns[2]
-		size, _ := strconv.ParseInt(columns[3], 10, 64)
-
-		path := strings.Split(row, "\t")[1]
-
-		f := FileEntry{Blob: blob, Size: size, Path: path}
-
+	r.GetFileEntriesIterator(commitId, func(f FileEntry) {
 		list = append(list, f)
-	}
+	})
 
 	return list, nil
 }
