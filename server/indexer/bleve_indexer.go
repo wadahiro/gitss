@@ -219,6 +219,7 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 		}
 	}
 	b.client.Batch(batch)
+	b.client.Close()
 	return nil
 }
 
