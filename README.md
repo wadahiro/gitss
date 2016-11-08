@@ -21,13 +21,13 @@ This repository is heavily under development and unstable now.
 2. To import git repository, run `gitss` command with `import` option as follows.
 
  ```bash
-./gitss-0.1.0-linux-amd64 import yourOrgName yourProjectName http://your-git-site/your-git-repo.git
+./gitss import yourOrgName yourProjectName http://your-git-site/your-git-repo.git
  ```
 
 3. Then you just start with server mode. Run `gitss` command with `server` option as follows.
 
  ```bash
-./gitss-0.1.0-linux-amd64 server
+./gitss server
  ```
 
 4. Open http://your-server:3000
