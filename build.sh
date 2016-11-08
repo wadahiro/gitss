@@ -13,7 +13,7 @@ vendor/bin/go-bindata -o ./server/bindata.go assets/... ./server/templates/...
 vendor/bin/gox \
  -ldflags "-X main.CommitHash=$COMMIT_HASH -X main.Version=$VERSION -X main.BuildTarget=production" \
  -osarch="$1/$2" \
- -output=build/gitss-${VERSION}-{{.OS}}-{{.Arch}} \
+ -output=build/gitss-${VERSION}-{{.OS}}-{{.Arch}}/gitss \
  ./server/...
 
 mkdir dist

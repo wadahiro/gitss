@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 	// "strconv"
+	"time"
 
 	"sort"
 	"strings"
@@ -131,6 +131,18 @@ var MAPPING = []byte(`{
 					}],
 					"default_analyzer": ""
 				},
+				"size": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "number",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
 				"content": {
 					"enabled": true,
 					"dynamic": true,
@@ -170,7 +182,7 @@ type BleveIndexer struct {
 	debug  bool
 }
 
-func NewBleveIndexer(config config.Config, reader *repo.GitRepoReader) Indexer {
+func NewBleveIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer {
 	indexPath := config.DataDir + "/bleve_index"
 	index, err := bleve.Open(indexPath)
 
@@ -219,6 +231,7 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 		}
 	}
 	b.client.Batch(batch)
+	b.client.Close()
 	return nil
 }
 
@@ -347,6 +360,7 @@ func (b *BleveIndexer) _index(f *FileIndex, batch *bleve.Batch) error {
 	if batch == nil {
 		return b.client.Index(getDocId(f), f)
 	} else {
+		fmt.Println(getDocId(f))
 		return batch.Index(getDocId(f), f)
 	}
 }
@@ -740,6 +754,23 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 		case "ext":
 			fileIndex.Metadata.Ext = value
+
+		case "size":
+			nf, ok := f.(*document.NumericField)
+
+			var size int64 = -1
+
+			if ok {
+				fSize, err := nf.Number()
+
+				log.Println("SSSS:", fSize)
+
+				if err == nil {
+					size = int64(fSize)
+				}
+			}
+
+			fileIndex.Metadata.Size = size
 		}
 	}
 

@@ -23,15 +23,15 @@ import (
 	gitm "github.com/gogits/git-module"
 	// "gopkg.in/src-d/go-git.v4"
 	// core "gopkg.in/src-d/go-git.v4/core"
+	"github.com/pkg/errors"
 )
 
 type GitRepoReader struct {
-	GitDataDir string
-	Debug      bool
+	config *config.Config
 }
 
-func NewGitRepoReader(config config.Config) *GitRepoReader {
-	reader := &GitRepoReader{GitDataDir: config.GitDataDir, Debug: config.Debug}
+func NewGitRepoReader(config *config.Config) *GitRepoReader {
+	reader := &GitRepoReader{config: config}
 	return reader
 }
 
@@ -46,7 +46,7 @@ func GetRepoNameFromUrl(url string) string {
 
 func (r *GitRepoReader) CloneGitRepo(organization string, project string, url string) (*GitRepo, error) {
 	repoName := GetRepoNameFromUrl(url)
-	gitRepoPath := getGitRepoPath(r.GitDataDir, organization, project, repoName)
+	gitRepoPath := getGitRepoPath(r.config.GitDataDir, organization, project, repoName)
 
 	err := gitm.Clone(url, gitRepoPath,
 		gitm.CloneRepoOptions{Mirror: true})
@@ -59,9 +59,9 @@ func (r *GitRepoReader) CloneGitRepo(organization string, project string, url st
 }
 
 func (r *GitRepoReader) GetGitRepo(organization string, project string, repoName string) (*GitRepo, error) {
-	gitRepoPath := getGitRepoPath(r.GitDataDir, organization, project, repoName)
+	gitRepoPath := getGitRepoPath(r.config.GitDataDir, organization, project, repoName)
 
-	repo, err := NewGitRepo(organization, project, repoName, gitRepoPath, r.Debug)
+	repo, err := NewGitRepo(organization, project, repoName, gitRepoPath, r.config)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ type GitRepo struct {
 	Repository   string
 	Path         string
 	gitmRepo     *gitm.Repository
-	Debug        bool
+	Config       *config.Config
 }
 
 type Source struct {
@@ -83,13 +83,13 @@ type Source struct {
 	Hits    []int  `json:"hits"`
 }
 
-func NewGitRepo(organization string, projectName string, repoName string, repoPath string, debug bool) (*GitRepo, error) {
+func NewGitRepo(organization string, projectName string, repoName string, repoPath string, config *config.Config) (*GitRepo, error) {
 	gitmRepo, err := gitm.OpenRepository(repoPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, Debug: debug}, nil
+	return &GitRepo{Organization: organization, Project: projectName, Repository: repoName, Path: repoPath, gitmRepo: gitmRepo, Config: config}, nil
 }
 
 func (r *GitRepo) FetchAll() error {
@@ -153,7 +153,7 @@ func (r *GitRepo) GetBlobContent(blob string) ([]byte, error) {
 // 		return "", err
 // 	}
 
-// 	if r.Debug {
+// 	if r.config.Debug {
 // 		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
 // 	}
 
@@ -201,7 +201,12 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 
 	for i := range rows {
 		row := rows[i]
+		pathColumns := strings.Split(row, "\t")
 		columns := strings.Fields(row)
+
+		if len(pathColumns) != 2 {
+			return errors.Errorf("Unexpected git ls-tree output. %s" + row)
+		}
 
 		blob := columns[2]
 		size, _ := strconv.ParseInt(columns[3], 10, 64)
@@ -217,28 +222,11 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 }
 
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
-	// see https://git-scm.com/docs/git-ls-tree
-	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
-	if err != nil {
-		return nil, err
-	}
-	s = strings.TrimRight(s, "\n")
-	rows := strings.Split(s, "\n")
 	list := []FileEntry{}
 
-	for i := range rows {
-		row := rows[i]
-		columns := strings.Fields(row)
-
-		blob := columns[2]
-		size, _ := strconv.ParseInt(columns[3], 10, 64)
-
-		path := strings.Split(row, "\t")[1]
-
-		f := FileEntry{Blob: blob, Size: size, Path: path}
-
+	r.GetFileEntriesIterator(commitId, func(f FileEntry) {
 		list = append(list, f)
-	}
+	})
 
 	return list, nil
 }
