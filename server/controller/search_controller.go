@@ -35,7 +35,12 @@ func SearchIndex(c *gin.Context) {
 			}
 		}
 
-		result := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches}, page)
+		result, err := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches}, page)
+
+		if err != nil {
+			c.AbortWithError(500, err)
+			return
+		}
 
 		c.JSON(200, result)
 	} else {

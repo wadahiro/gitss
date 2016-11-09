@@ -176,15 +176,15 @@ var MAPPING = []byte(`{
 }`)
 
 type BleveIndexer struct {
-	config config.Config
-	client bleve.Index
-	reader *repo.GitRepoReader
-	debug  bool
+	config    config.Config
+	reader    *repo.GitRepoReader
+	indexPath string
+	debug     bool
 }
 
 func NewBleveIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer {
 	indexPath := config.DataDir + "/bleve_index"
-	index, err := bleve.Open(indexPath)
+	client, err := bleve.Open(indexPath)
 
 	if err == bleve.ErrorIndexPathDoesNotExist {
 		var mapping mapping.IndexMappingImpl
@@ -195,7 +195,7 @@ func NewBleveIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer 
 			panic("error unmarshalling mapping")
 		}
 
-		index, err = bleve.New(indexPath, &mapping)
+		client, err = bleve.New(indexPath, &mapping)
 
 		if err != nil {
 			log.Println(err)
@@ -203,57 +203,90 @@ func NewBleveIndexer(config *config.Config, reader *repo.GitRepoReader) Indexer 
 		}
 	}
 
-	i := &BleveIndexer{client: index, reader: reader, debug: config.Debug}
+	defer client.Close()
+
+	i := &BleveIndexer{indexPath: indexPath, reader: reader, debug: config.Debug}
 
 	return i
 }
 
+func (b *BleveIndexer) open() (bleve.Index, error) {
+	index, err := bleve.Open(b.indexPath)
+	if err != nil {
+		return nil, err
+	}
+	return index, nil
+}
+
 func (b *BleveIndexer) CreateFileIndex(requestFileIndex FileIndex) error {
-	return b.create(requestFileIndex, nil)
+	client, err := b.open()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	return b.create(client, requestFileIndex, nil)
 }
 
 func (b *BleveIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
-	return b.upsert(requestFileIndex, nil)
+	client, err := b.open()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	return b.upsert(client, requestFileIndex, nil)
 }
 
 func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
-	batch := b.client.NewBatch()
+	client, err := b.open()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	batch := client.NewBatch()
 	for i := range requestBatch {
 		op := requestBatch[i]
 		f := op.FileIndex
 
 		switch op.Method {
 		case ADD:
-			b.upsert(f, batch)
+			b.upsert(client, f, batch)
 		case DELETE:
-			b.delete(f, batch)
+			b.delete(client, f, batch)
 			batch.Delete(f.Blob)
 		}
 	}
-	b.client.Batch(batch)
-	b.client.Close()
+	client.Batch(batch)
 	return nil
 }
 
 func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
-	b.searchByRefs(organization, project, repository, refs, func(searchResult *bleve.SearchResult) {
-		batch := b.client.NewBatch()
+	client, err := b.open()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	b.searchByRefs(client, organization, project, repository, refs, func(searchResult *bleve.SearchResult) {
+		batch := client.NewBatch()
 
 		for i := range searchResult.Hits {
 			hit := searchResult.Hits[i]
-			doc, err := b.client.Document(hit.ID)
+			doc, err := client.Document(hit.ID)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			err = b.deleteByDoc(doc, refs, batch)
+			err = b.deleteByDoc(client, doc, refs, batch)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
 		}
 
-		err := b.client.Batch(batch)
+		err := client.Batch(batch)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -262,10 +295,10 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 	return nil
 }
 
-func (b *BleveIndexer) create(requestFileIndex FileIndex, batch *bleve.Batch) error {
+func (b *BleveIndexer) create(client bleve.Index, requestFileIndex FileIndex, batch *bleve.Batch) error {
 	fillFileIndex(&requestFileIndex)
 
-	err := b._index(&requestFileIndex, batch)
+	err := b._index(client, &requestFileIndex, batch)
 
 	if err != nil {
 		log.Println("Create Doc error", err)
@@ -277,14 +310,14 @@ func (b *BleveIndexer) create(requestFileIndex FileIndex, batch *bleve.Batch) er
 	return nil
 }
 
-func (b *BleveIndexer) upsert(requestFileIndex FileIndex, batch *bleve.Batch) error {
+func (b *BleveIndexer) upsert(client bleve.Index, requestFileIndex FileIndex, batch *bleve.Batch) error {
 	fillFileIndex(&requestFileIndex)
 
-	doc, _ := b.client.Document(getDocId(&requestFileIndex))
+	doc, _ := client.Document(getDocId(&requestFileIndex))
 
 	// Create case
 	if doc == nil {
-		return b.create(requestFileIndex, batch)
+		return b.create(client, requestFileIndex, batch)
 	}
 
 	// Update case
@@ -302,7 +335,7 @@ func (b *BleveIndexer) upsert(requestFileIndex FileIndex, batch *bleve.Batch) er
 		return nil
 	}
 
-	err := b._index(fileIndex, batch)
+	err := b._index(client, fileIndex, batch)
 
 	if err != nil {
 		log.Println("Update Doc error", err)
@@ -315,15 +348,15 @@ func (b *BleveIndexer) upsert(requestFileIndex FileIndex, batch *bleve.Batch) er
 	return nil
 }
 
-func (b *BleveIndexer) delete(requestFileIndex FileIndex, batch *bleve.Batch) error {
-	doc, err := b.client.Document(getDocId(&requestFileIndex))
+func (b *BleveIndexer) delete(client bleve.Index, requestFileIndex FileIndex, batch *bleve.Batch) error {
+	doc, err := client.Document(getDocId(&requestFileIndex))
 	if err != nil {
 		return err
 	}
-	return b.deleteByDoc(doc, requestFileIndex.Metadata.Refs, batch)
+	return b.deleteByDoc(client, doc, requestFileIndex.Metadata.Refs, batch)
 }
 
-func (b *BleveIndexer) deleteByDoc(doc *document.Document, refs []string, batch *bleve.Batch) error {
+func (b *BleveIndexer) deleteByDoc(client bleve.Index, doc *document.Document, refs []string, batch *bleve.Batch) error {
 	if doc != nil {
 		// Restore fileIndex from index
 		fileIndex := docToFileIndex(doc)
@@ -332,7 +365,7 @@ func (b *BleveIndexer) deleteByDoc(doc *document.Document, refs []string, batch 
 		allRemoved := removeRef(fileIndex, refs)
 
 		if allRemoved {
-			err := b._delete(doc.ID, batch)
+			err := b._delete(client, doc.ID, batch)
 
 			if err != nil {
 				log.Println("Delete Doc error", err)
@@ -342,7 +375,7 @@ func (b *BleveIndexer) deleteByDoc(doc *document.Document, refs []string, batch 
 				log.Println("Deleted index")
 			}
 		} else {
-			err := b._index(fileIndex, batch)
+			err := b._index(client, fileIndex, batch)
 
 			if err != nil {
 				log.Println("Update(for delete) Doc error", err)
@@ -356,33 +389,39 @@ func (b *BleveIndexer) deleteByDoc(doc *document.Document, refs []string, batch 
 	return nil
 }
 
-func (b *BleveIndexer) _index(f *FileIndex, batch *bleve.Batch) error {
+func (b *BleveIndexer) _index(client bleve.Index, f *FileIndex, batch *bleve.Batch) error {
 	if batch == nil {
-		return b.client.Index(getDocId(f), f)
+		return client.Index(getDocId(f), f)
 	} else {
 		fmt.Println(getDocId(f))
 		return batch.Index(getDocId(f), f)
 	}
 }
 
-func (b *BleveIndexer) _delete(docID string, batch *bleve.Batch) error {
+func (b *BleveIndexer) _delete(client bleve.Index, docID string, batch *bleve.Batch) error {
 	if batch == nil {
-		return b.client.Delete(docID)
+		return client.Delete(docID)
 	}
 	batch.Delete(docID)
 	return nil
 }
 
-func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page int) SearchResult {
+func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page int) (SearchResult, error) {
+	client, err := b.open()
+	if err != nil {
+		return SearchResult{}, err
+	}
+	defer client.Close()
+
 	start := time.Now()
-	result := b.search(query, filterParams, page)
+	result := b.search(client, query, filterParams, page)
 	end := time.Now()
 
 	result.Time = (end.Sub(start)).Seconds()
-	return result
+	return result, nil
 }
 
-func (b *BleveIndexer) searchByRefs(organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) searchByRefs(client bleve.Index, organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
 	oq := bleve.NewQueryStringQuery("organization:" + organization)
 	pq := bleve.NewQueryStringQuery("project:" + project)
 	rq := bleve.NewQueryStringQuery("repository:" + repository)
@@ -397,20 +436,20 @@ func (b *BleveIndexer) searchByRefs(organization string, project string, reposit
 	s.From = 0
 	s.Size = 100
 
-	return b.handleSearch(s, callback)
+	return b.handleSearch(client, s, callback)
 }
 
-func (b *BleveIndexer) searchByOrganization(organization string, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) searchByOrganization(client bleve.Index, organization string, callback func(searchResult *bleve.SearchResult)) error {
 	q := bleve.NewQueryStringQuery("organization:" + organization)
 
 	s := bleve.NewSearchRequest(q)
 	s.From = 0
 	s.Size = 100
 
-	return b.handleSearch(s, callback)
+	return b.handleSearch(client, s, callback)
 }
 
-func (b *BleveIndexer) searchByProject(organization string, project string, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) searchByProject(client bleve.Index, organization string, project string, callback func(searchResult *bleve.SearchResult)) error {
 	oq := bleve.NewQueryStringQuery("organization:" + organization)
 	pq := bleve.NewQueryStringQuery("project:" + project)
 	q := bleve.NewConjunctionQuery(oq, pq)
@@ -419,10 +458,10 @@ func (b *BleveIndexer) searchByProject(organization string, project string, call
 	s.From = 0
 	s.Size = 100
 
-	return b.handleSearch(s, callback)
+	return b.handleSearch(client, s, callback)
 }
 
-func (b *BleveIndexer) searchByRepository(organization string, project string, repository string, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) searchByRepository(client bleve.Index, organization string, project string, repository string, callback func(searchResult *bleve.SearchResult)) error {
 	oq := bleve.NewQueryStringQuery("organization:" + organization)
 	pq := bleve.NewQueryStringQuery("project:" + project)
 	rq := bleve.NewQueryStringQuery("repository:" + repository)
@@ -432,12 +471,12 @@ func (b *BleveIndexer) searchByRepository(organization string, project string, r
 	s.From = 0
 	s.Size = 100
 
-	return b.handleSearch(s, callback)
+	return b.handleSearch(client, s, callback)
 }
 
-func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) handleSearch(client bleve.Index, searchRequest *bleve.SearchRequest, callback func(searchResult *bleve.SearchResult)) error {
 	for {
-		searchResult, err := b.client.Search(searchRequest)
+		searchResult, err := client.Search(searchRequest)
 		if err != nil {
 			return err
 		}
@@ -453,7 +492,7 @@ func (b *BleveIndexer) handleSearch(searchRequest *bleve.SearchRequest, callback
 	return nil
 }
 
-func (b *BleveIndexer) search(queryString string, filterParams FilterParams, page int) SearchResult {
+func (b *BleveIndexer) search(client bleve.Index, queryString string, filterParams FilterParams, page int) SearchResult {
 	p := qs.Parser{DefaultOp: qs.AND}
 	q, err := p.Parse(queryString)
 
@@ -506,7 +545,7 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 	s.From = page * 10
 	s.Size = 10 // @TODO
 
-	searchResults, err := b.client.Search(s)
+	searchResults, err := client.Search(s)
 
 	if err != nil {
 		log.Printf("Query error. %+v", err)
@@ -530,7 +569,7 @@ func (b *BleveIndexer) search(queryString string, filterParams FilterParams, pag
 	// fmt.Printf("facets: %s\n", string(j))
 
 	for _, hit := range searchResults.Hits {
-		doc, err := b.client.Document(hit.ID)
+		doc, err := client.Document(hit.ID)
 		if err != nil {
 			log.Println("Already deleted from index? ID:" + hit.ID)
 			continue
@@ -762,11 +801,10 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 			if ok {
 				fSize, err := nf.Number()
-
-				log.Println("SSSS:", fSize)
-
 				if err == nil {
 					size = int64(fSize)
+				} else {
+					size = -1
 				}
 			}
 
