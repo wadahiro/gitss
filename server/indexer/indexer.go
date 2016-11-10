@@ -14,7 +14,7 @@ type Indexer interface {
 	CreateFileIndex(requestFileIndex FileIndex) error
 	UpsertFileIndex(requestFileIndex FileIndex) error
 	BatchFileIndex(operations []FileIndexOperation) error
-	DeleteIndexByRefs(organization string, project string, repository string, refs []string) error
+	DeleteIndexByRefs(organization string, project string, repository string, branches []string, tags []string) error
 
 	SearchQuery(query string, filters FilterParams, page int) (SearchResult, error)
 

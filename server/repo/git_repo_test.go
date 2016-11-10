@@ -27,7 +27,7 @@ func TestGetFileEntries(t *testing.T) {
 func TestGetFileEntriesMap(t *testing.T) {
 	r, _ := repo.NewGitRepo("o", "p", "r", "../../", &config.Config{})
 
-	entries, err := r.GetFileEntriesMap([]string{})
+	entries, err := r.GetFileEntriesMap([]string{}, []string{})
 
 	fmt.Println("len(entries): ", len(entries))
 

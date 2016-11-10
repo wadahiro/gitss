@@ -122,3 +122,12 @@ func DifferenceStrings(strs []string, excludes []string) []string {
 	}
 	return newStrs
 }
+
+func ContainsString(array []string, obj string) bool {
+	for _, o := range array {
+		if o == obj {
+			return true
+		}
+	}
+	return false
+}

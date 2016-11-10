@@ -262,14 +262,14 @@ func (b *BleveIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 
-func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
+func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, repository string, branches []string, tags []string) error {
 	client, err := b.open()
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
-	b.searchByRefs(client, organization, project, repository, refs, func(searchResult *bleve.SearchResult) {
+	b.searchByRefs(client, organization, project, repository, branches, func(searchResult *bleve.SearchResult) {
 		batch := client.NewBatch()
 
 		for i := range searchResult.Hits {
@@ -279,7 +279,7 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 				fmt.Println(err)
 				continue
 			}
-			err = b.deleteByDoc(client, doc, refs, batch)
+			err = b.deleteByDoc(client, doc, branches, batch)
 			if err != nil {
 				fmt.Println(err)
 				continue

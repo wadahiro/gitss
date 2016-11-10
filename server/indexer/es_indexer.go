@@ -191,7 +191,7 @@ func (e *ESIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 
-func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
+func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repository string, branches []string, tags []string) error {
 	return nil
 }
 

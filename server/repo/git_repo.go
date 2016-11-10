@@ -104,18 +104,26 @@ func (r *GitRepo) FetchAll() error {
 func (r *GitRepo) GetBranches() ([]string, error) {
 	b, err := r.gitmRepo.GetBranches()
 	if err != nil {
-		return nil, errors.Wrapf(err, `Failed to get branch list. cmd: "show-ref --heads"`)
+		return nil, errors.Wrapf(err, `Failed to get branch list. cmd: "git show-ref --heads"`)
 	}
 	return b, nil
 }
 
-func (r *GitRepo) GetLatestCommitIdsMap() (map[string]string, map[string]string, error) {
+func (r *GitRepo) GetTags() ([]string, error) {
+	t, err := r.gitmRepo.GetTags()
+	if err != nil {
+		return nil, errors.Wrapf(err, `Failed to get tag list. cmd: "git tag -l"`)
+	}
+	return t, nil
+}
+
+func (r *GitRepo) GetLatestCommitIdsMap(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (map[string]string, map[string]string, error) {
 	branches, err := r.GetBranches()
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "Failed to get branch list")
 	}
 
-	tags, err := r.gitmRepo.GetTags()
+	tags, err := r.GetTags()
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "Failed to get tag list")
 	}
@@ -123,12 +131,20 @@ func (r *GitRepo) GetLatestCommitIdsMap() (map[string]string, map[string]string,
 	// master -> refs/heads/master
 	b := []string{}
 	for _, branch := range branches {
-		b = append(b, gitm.BRANCH_PREFIX+branch)
+		if includeBranches == nil || len(includeBranches) == 0 || util.ContainsString(includeBranches, branch) {
+			if excludeBranches == nil || len(excludeBranches) == 0 || !util.ContainsString(excludeBranches, branch) {
+				b = append(b, gitm.BRANCH_PREFIX+branch)
+			}
+		}
 	}
 
 	// v1.0 => refs/heads/
 	for _, tag := range tags {
-		b = append(b, gitm.TAG_PREFIX+tag)
+		if includeTags == nil || len(includeTags) == 0 || util.ContainsString(includeTags, tag) {
+			if excludeTags == nil || len(excludeTags) == 0 || !util.ContainsString(excludeTags, tag) {
+				b = append(b, gitm.TAG_PREFIX+tag)
+			}
+		}
 	}
 
 	// get commitIds
@@ -318,12 +334,15 @@ type GitFileLocation struct {
 	Tags     []string
 }
 
-func (r *GitRepo) GetFileEntriesMap(excludeBranches []string) (map[string]GitFile, error) {
-	branchesMap, tagsMap, err := r.GetLatestCommitIdsMap()
+func (r *GitRepo) GetFileEntriesMapByRefs(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (map[string]GitFile, error) {
+	branchesMap, tagsMap, err := r.GetLatestCommitIdsMap(includeBranches, includeTags, excludeBranches, excludeTags)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to get branches/tags commitIds.")
 	}
+	return r.GetFileEntriesMap(branchesMap, tagsMap)
+}
 
+func (r *GitRepo) GetFileEntriesMap(branchesMap map[string]string, tagsMap map[string]string) (map[string]GitFile, error) {
 	files := make(map[string]GitFile)
 
 	for branch, commitId := range branchesMap {
