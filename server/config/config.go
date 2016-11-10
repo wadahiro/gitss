@@ -19,15 +19,16 @@ import (
 var fileMutex sync.Mutex
 
 type Config struct {
-	DataDir     string
-	GitDataDir  string
-	ConfDir     string
-	Port        int
-	IndexerType string
-	SizeLimit   int64
-	Schedule    string
-	Debug       bool
-	settings    []SyncSetting
+	DataDir      string
+	GitDataDir   string
+	ConfDir      string
+	Port         int
+	IndexerType  string
+	SizeLimit    int64
+	Schedule     string
+	Debug        bool
+	PreFetchRefs bool
+	settings     []SyncSetting
 }
 
 type LatestIndex struct {
@@ -50,14 +51,15 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 	schedule := c.GlobalString("schedule")
 
 	config := &Config{
-		DataDir:     dataDir,
-		GitDataDir:  gitDataDir,
-		ConfDir:     confDir,
-		Port:        port,
-		IndexerType: indexerType,
-		SizeLimit:   sizeLimit,
-		Schedule:    schedule,
-		Debug:       debug,
+		DataDir:      dataDir,
+		GitDataDir:   gitDataDir,
+		ConfDir:      confDir,
+		Port:         port,
+		IndexerType:  indexerType,
+		SizeLimit:    sizeLimit,
+		Schedule:     schedule,
+		Debug:        debug,
+		PreFetchRefs: false,
 	}
 
 	config.init()

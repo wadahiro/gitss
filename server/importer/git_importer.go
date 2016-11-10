@@ -16,8 +16,6 @@ import (
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
 	"github.com/wadahiro/gitss/server/util"
-
-	gitm "github.com/gogits/git-module"
 )
 
 type GitImporter struct {
@@ -45,20 +43,28 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
+	// branches in the git repository
 	branches, _ := repo.GetBranches()
 
+	// branches in the config file
 	refs, ok := g.config.GetRefs(organization, project, repo.Repository)
 	if !ok {
 		log.Printf("Not found repository setting. %s:%s/%s \n", organization, project, repo.Repository)
 		return
 	}
 
-	log.Printf("Start indexing for %s:%s/%s %v -> %v\n", organization, project, repo.Repository, branches, refs)
+	log.Printf("Start indexing for %s:%s/%s %v -> %v\n", organization, project, repo.Repository, refs, branches)
 
 	start := time.Now()
 
+	branchCommitIdMap, err := repo.GetBrancheCommitIdMap()
+	if err != nil {
+		log.Printf("Not found branches. %s:%s/%s %+v\n", organization, project, repo.Repository, err)
+		return
+	}
+
 	for _, branch := range branches {
-		g.RunIndexing(url, repo, branch)
+		g.RunIndexing(branchCommitIdMap, url, repo, branch)
 	}
 
 	// Remove index for removed branches
@@ -89,22 +95,22 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 	log.Printf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository)
 }
 
-func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName string) {
-	latestCommitId, _ := repo.GetBranchCommitID(branchName)
+func (g *GitImporter) RunIndexing(branchCommitIdMap map[string]string, url string, repo *repo.GitRepo, branchName string) error {
+	latestCommitId, _ := branchCommitIdMap[branchName]
 	indexedCommitId, ok := g.config.GetIndexedCommitID(repo.Organization, repo.Project, repo.Repository, branchName)
 
 	tag := getLoggingTag(repo, branchName, latestCommitId)
 
 	if latestCommitId == indexedCommitId {
 		log.Printf("Already up-to-date. %s", tag)
-		return
+		return nil
 	}
 
 	queue := make(chan indexer.FileIndexOperation, 100)
 
 	if !ok {
 		fmt.Printf("New Indexing start: %s\n", tag)
-		g.CreateBranchIndex(queue, repo, branchName, latestCommitId)
+		g.CreateBranchIndex(branchCommitIdMap, queue, repo, branchName, latestCommitId)
 	} else {
 		fmt.Printf("Update Indexing start: %s\n", tag)
 		g.UpdateBranchIndex(queue, repo, branchName, indexedCommitId, latestCommitId)
@@ -153,9 +159,11 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 
 	// Save config after index completed
 	g.config.UpdateLatestIndex(url, repo.Organization, repo.Project, repo.Repository, branchName, latestCommitId)
+
+	return nil
 }
 
-func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, latestCommitId string) error {
+func (g *GitImporter) CreateBranchIndex(branchCommitIdMap map[string]string, queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, latestCommitId string) error {
 
 	workers := util.GenWorkers(10)
 	var wg sync.WaitGroup
@@ -174,26 +182,51 @@ func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r
 				defer wg.Done()
 				// heavy process
 
-				// check contentType
-				ok, content := g.checkContentType(r, fileEntry)
-				if !ok {
-					// fmt.Printf("%s skipped. [%s] %s - %s\n", contentType, tag, addEntry.Blob, addEntry.Path)
-					return
-				}
-
 				fileIndex := indexer.FileIndex{
 					Metadata: indexer.Metadata{
 						Blob:         fileEntry.Blob,
 						Organization: r.Organization,
 						Project:      r.Project,
 						Repository:   r.Repository,
-						Refs:         []string{branchName},
 						Path:         fileEntry.Path,
 						Ext:          indexer.GetExt(fileEntry.Path),
 						Size:         fileEntry.Size,
 					},
-					Content: content,
 				}
+
+				if g.config.PreFetchRefs {
+					ok, _ := g.indexer.Exists(fileIndex)
+					if ok {
+						log.Println("Already indexed by preFetchRefs.")
+						return
+					}
+				}
+
+				// check contentType and retrive the file content
+				// !! this will be heavy process !!
+				ok, content := g.checkContentType(r, fileEntry)
+				if !ok {
+					// fmt.Printf("%s skipped. [%s] %s - %s\n", contentType, tag, addEntry.Blob, addEntry.Path)
+					return
+				}
+
+				// check whether the same file exists in the other branches
+				refs := []string{branchName}
+				if g.config.PreFetchRefs {
+					for otherBranch, commitId := range branchCommitIdMap {
+						if otherBranch != branchName {
+							exists, _ := r.ExistsInCommit(commitId, fileEntry.Path, fileEntry.Blob)
+							if exists {
+								refs = append(refs, otherBranch)
+							}
+						}
+					}
+					log.Println("PreFetchRefs: ", refs)
+				}
+
+				fileIndex.Refs = refs
+				fileIndex.Content = content
+
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
 		})
@@ -307,27 +340,6 @@ func (g *GitImporter) checkContentType(repo *repo.GitRepo, fileEntry repo.FileEn
 }
 
 func getLoggingTag(repo *repo.GitRepo, branchName string, commitId string) string {
-	tag := fmt.Sprintf("%s:%s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
+	tag := fmt.Sprintf("%s:%s/%s (%s) [%s]", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
 	return tag
-}
-
-func ContainsBranch(repoPath string, commitId string) ([]string, error) {
-	cmd := gitm.NewCommand("branch")
-	cmd.AddArguments("--contains", commitId)
-
-	stdout, err := cmd.RunInDir(repoPath)
-
-	// log.Println("--------------->", err)
-	if err != nil {
-		return nil, err
-	}
-	// log.Println("--------------->", stdout)
-
-	infos := strings.Split(stdout, "\n")
-	// log.Println(len(infos))
-	branches := make([]string, len(infos)-1)
-	for i, info := range infos[:len(infos)-1] {
-		branches[i] = info[2:]
-	}
-	return branches, nil
 }

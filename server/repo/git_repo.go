@@ -105,8 +105,60 @@ func (r *GitRepo) GetBranches() ([]string, error) {
 	return r.gitmRepo.GetBranches()
 }
 
+func (r *GitRepo) GetBrancheCommitIdMap() (map[string]string, error) {
+	branches, err := r.GetBranches()
+	if err != nil {
+		return nil, err
+	}
+
+	// master -> refs/heads/master
+	b := []string{}
+	for _, branch := range branches {
+		b = append(b, gitm.BRANCH_PREFIX+branch)
+	}
+
+	// get commitIds
+	stdout, err := gitm.NewCommand("show-ref", "--verify").AddArguments(b...).RunInDir(r.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string)
+
+	rows := strings.Split(stdout, "\n")
+	for _, row := range rows[:len(rows)-1] {
+		columns := strings.Split(row, " ")
+		if len(columns) != 2 {
+			return nil, errors.Errorf("Already removed Ref? git show-ref --verify %s response: %s", strings.Join(b, " "), row)
+		}
+		// refs/heads/master -> master
+		ref := columns[1][len(gitm.BRANCH_PREFIX):]
+		result[ref] = columns[0]
+	}
+
+	return result, nil
+}
+
 func (r *GitRepo) GetBranchCommitID(name string) (string, error) {
 	return r.gitmRepo.GetBranchCommitID(name)
+}
+
+func (r *GitRepo) GetContainsBranches(commitId string) ([]string, error) {
+	cmd := gitm.NewCommand("branch")
+	cmd.AddArguments("--contains", commitId)
+
+	stdout, err := cmd.RunInDir(r.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := strings.Split(stdout, "\n")
+
+	branches := make([]string, len(infos)-1)
+	for i, info := range infos[:len(infos)-1] {
+		branches[i] = info[2:]
+	}
+	return branches, nil
 }
 
 func (r *GitRepo) GetBlobSize(blob string) (int64, error) {
@@ -372,6 +424,29 @@ func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry,
 	}
 
 	return addList, delList, nil
+}
+
+func (r *GitRepo) ExistsInCommit(commitId string, filePath string, blobId string) (bool, error) {
+	// see https://git-scm.com/docs/git-ls-tree
+	s, err := gitm.NewCommand("ls-tree", "--abbrev=40", commitId, "--", filePath).RunInDir(r.Path)
+	if err != nil {
+		return false, err
+	}
+
+	// log.Println(s)
+
+	result := strings.Split(s, "\n")
+	if len(result) < 2 {
+		// Not found case
+		return false, nil
+	}
+
+	columns := strings.Fields(result[0])
+	if len(columns) != 4 {
+		return false, errors.Errorf("Unexpected ls-tree response. command: git ls-tree -l --abbrev=40 %s -- %s response: %s", commitId, filePath, s)
+	}
+
+	return columns[2] == blobId, nil
 }
 
 func getGitRepoPath(GitDataDir string, organization string, project string, repoName string) string {

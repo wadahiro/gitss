@@ -421,6 +421,20 @@ func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page
 	return result, nil
 }
 
+func (b *BleveIndexer) Exists(fileIndex FileIndex) (bool, error) {
+	client, err := b.open()
+	if err != nil {
+		return false, err
+	}
+	defer client.Close()
+
+	doc, err := client.Document(getDocId(&fileIndex))
+	if doc != nil {
+		return true, nil
+	}
+	return false, err
+}
+
 func (b *BleveIndexer) searchByRefs(client bleve.Index, organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
 	oq := bleve.NewQueryStringQuery("organization:" + organization)
 	pq := bleve.NewQueryStringQuery("project:" + project)

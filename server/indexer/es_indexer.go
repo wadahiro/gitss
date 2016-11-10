@@ -264,6 +264,10 @@ func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams, page in
 	return result, nil
 }
 
+func (e *ESIndexer) Exists(requestFileIndex FileIndex) (bool, error) {
+	return false, nil
+}
+
 func (e *ESIndexer) search(query string) SearchResult {
 	// termQuery := elastic.NewTermsQuery("content", strings.Split(query, " "))
 	q := elastic.NewQueryStringQuery(query).DefaultField("content").DefaultOperator("AND")
