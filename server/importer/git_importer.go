@@ -57,7 +57,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	start := time.Now()
 
-	branchCommitIdMap, err := repo.GetBrancheCommitIdMap()
+	branchCommitIdMap, _, err := repo.GetLatestCommitIdsMap()
 	if err != nil {
 		log.Printf("Not found branches. %s:%s/%s %+v\n", organization, project, repo.Repository, err)
 		return

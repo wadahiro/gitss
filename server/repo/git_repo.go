@@ -102,13 +102,22 @@ func (r *GitRepo) FetchAll() error {
 }
 
 func (r *GitRepo) GetBranches() ([]string, error) {
-	return r.gitmRepo.GetBranches()
+	b, err := r.gitmRepo.GetBranches()
+	if err != nil {
+		return nil, errors.Wrapf(err, `Failed to get branch list. cmd: "show-ref --heads"`)
+	}
+	return b, nil
 }
 
-func (r *GitRepo) GetBrancheCommitIdMap() (map[string]string, error) {
+func (r *GitRepo) GetLatestCommitIdsMap() (map[string]string, map[string]string, error) {
 	branches, err := r.GetBranches()
 	if err != nil {
-		return nil, err
+		return nil, nil, errors.Wrapf(err, "Failed to get branch list")
+	}
+
+	tags, err := r.gitmRepo.GetTags()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get tag list")
 	}
 
 	// master -> refs/heads/master
@@ -117,26 +126,38 @@ func (r *GitRepo) GetBrancheCommitIdMap() (map[string]string, error) {
 		b = append(b, gitm.BRANCH_PREFIX+branch)
 	}
 
+	// v1.0 => refs/heads/
+	for _, tag := range tags {
+		b = append(b, gitm.TAG_PREFIX+tag)
+	}
+
 	// get commitIds
 	stdout, err := gitm.NewCommand("show-ref", "--verify").AddArguments(b...).RunInDir(r.Path)
 	if err != nil {
-		return nil, err
+		return nil, nil, errors.Wrapf(err, `Failed to get branch commitIds. cmd: "show-ref --verify %s"`, strings.Join(b, " "))
 	}
 
-	result := make(map[string]string)
+	resultBranches := make(map[string]string)
+	resultTags := make(map[string]string)
 
 	rows := strings.Split(stdout, "\n")
 	for _, row := range rows[:len(rows)-1] {
 		columns := strings.Split(row, " ")
 		if len(columns) != 2 {
-			return nil, errors.Errorf("Already removed Ref? git show-ref --verify %s response: %s", strings.Join(b, " "), row)
+			return nil, nil, errors.Errorf(`Already removed Ref? "git show-ref --verify %s" response: %s`, strings.Join(b, " "), row)
 		}
-		// refs/heads/master -> master
-		ref := columns[1][len(gitm.BRANCH_PREFIX):]
-		result[ref] = columns[0]
+		if strings.Contains(columns[1], gitm.BRANCH_PREFIX) {
+			// refs/heads/master -> master
+			branch := columns[1][len(gitm.BRANCH_PREFIX):]
+			resultBranches[branch] = columns[0] // columns[0] is commitId
+		} else {
+			// refs/tags/v1.0 -> v1.0
+			tag := columns[1][len(gitm.TAG_PREFIX):]
+			resultTags[tag] = columns[0] // columns[0] is commitId
+		}
 	}
 
-	return result, nil
+	return resultBranches, resultTags, nil
 }
 
 func (r *GitRepo) GetBranchCommitID(name string) (string, error) {
@@ -246,7 +267,7 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 	// see https://git-scm.com/docs/git-ls-tree
 	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, `Faild to get file list. cmd: "git ls-tree -r -l --abbrev=40 %s"`, commitId)
 	}
 	s = strings.TrimRight(s, "\n")
 	rows := strings.Split(s, "\n")
@@ -276,11 +297,85 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
 	list := []FileEntry{}
 
-	r.GetFileEntriesIterator(commitId, func(f FileEntry) {
+	err := r.GetFileEntriesIterator(commitId, func(f FileEntry) {
 		list = append(list, f)
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	return list, nil
+}
+
+type GitFile struct {
+	Locations map[string]GitFileLocation
+	Size      int64
+}
+
+type GitFileLocation struct {
+	Branches []string
+	Tags     []string
+}
+
+func (r *GitRepo) GetFileEntriesMap(excludeBranches []string) (map[string]GitFile, error) {
+	branchesMap, tagsMap, err := r.GetLatestCommitIdsMap()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to get branches/tags commitIds.")
+	}
+
+	files := make(map[string]GitFile)
+
+	for branch, commitId := range branchesMap {
+		entries, err := r.GetFileEntries(commitId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get file entries of branch commit %s.", commitId)
+		}
+
+		for _, entry := range entries {
+			_, ok := files[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				files[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := files[entry.Blob].Locations[entry.Path]
+				if !ok {
+					files[entry.Blob].Locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				} else {
+					location := files[entry.Blob].Locations[entry.Path]
+					location.Branches = append(location.Branches, branch)
+					files[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+
+	for tag, commitId := range tagsMap {
+		entries, err := r.GetFileEntries(commitId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get file entries of tag commit %s.", commitId)
+		}
+
+		for _, entry := range entries {
+			_, ok := files[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+				files[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := files[entry.Blob].Locations[entry.Path]
+				if !ok {
+					files[entry.Blob].Locations[entry.Path] = GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+				} else {
+					location := files[entry.Blob].Locations[entry.Path]
+					location.Tags = append(location.Tags, tag)
+					files[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+	return files, nil
 }
 
 func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(fileEntry FileEntry, status string)) error {
