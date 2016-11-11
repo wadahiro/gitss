@@ -196,7 +196,11 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 	}
 
 	// Save config after index completed
-	g.config.UpdateIndexed(config.Indexed{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Branches: branchMap, Tags: tagMap})
+	err := g.config.UpdateIndexed(config.Indexed{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Branches: branchMap, Tags: tagMap})
+
+	if err != nil {
+		return errors.Wrapf(err, "Faild to update indexed.")
+	}
 
 	return nil
 }

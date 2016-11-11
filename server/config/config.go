@@ -416,6 +416,15 @@ type TagIndexedMap map[string]string
 func (c *Config) writeIndexed(indexed Indexed) error {
 	content, _ := json.MarshalIndent(indexed, "", "  ")
 	fileName := c.getIndexedFilePath(indexed.Organization, indexed.Project, indexed.Repository)
+
+	if err := os.MkdirAll(fmt.Sprintf("%s/%s/%s", c.IndexedDir, indexed.Organization, indexed.Project), 0644); err != nil {
+		log.Fatalln(err)
+	}
+
+	if c.Debug {
+		log.Println("Write indexd file.", fileName)
+	}
+
 	return ioutil.WriteFile(fileName, content, os.ModePerm)
 }
 
