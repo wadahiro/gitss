@@ -168,6 +168,8 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 	var opsSize int64 = 0
 	var batchLimitSize int64 = 1024 * 1024 // 1MB
 
+	// fmt.Println("start queue reading")
+
 	for op := range queue {
 		operations = append(operations, op)
 		opsSize += op.FileIndex.Size
@@ -235,43 +237,56 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, r *repo
 }
 
 func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
+	if len(addFiles) == 0 {
+		return
+	}
+
+	var wg sync.WaitGroup
+
 	for blob, file := range addFiles {
 		// check size
 		if file.Size > g.config.SizeLimit {
 			continue
 		}
-		for path, loc := range file.Locations {
-			// check contentType and retrive the file content
-			// !! this will be heavy process !!
-			contentType, content, err := g.parseContent(r, blob)
-			if err != nil {
-				log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
-				continue
-				// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
-			}
 
-			// @TODO Extract text from binary in the future?
-			if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
-				continue
-			}
+		wg.Add(1)
+		go func(blob string, file repo.GitFile) {
+			defer wg.Done()
 
-			fileIndex := indexer.FileIndex{
-				Metadata: indexer.Metadata{
-					Blob:         blob,
-					Organization: r.Organization,
-					Project:      r.Project,
-					Repository:   r.Repository,
-					Branches:     loc.Branches,
-					Tags:         loc.Tags,
-					Path:         path,
-					Ext:          indexer.GetExt(path),
-					Size:         file.Size,
-				},
-				Content: content,
+			for path, loc := range file.Locations {
+				// check contentType and retrive the file content
+				// !! this will be heavy process !!
+				contentType, content, err := g.parseContent(r, blob)
+				if err != nil {
+					log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
+					continue
+					// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
+				}
+
+				// @TODO Extract text from binary in the future?
+				if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
+					continue
+				}
+
+				fileIndex := indexer.FileIndex{
+					Metadata: indexer.Metadata{
+						Blob:         blob,
+						Organization: r.Organization,
+						Project:      r.Project,
+						Repository:   r.Repository,
+						Branches:     loc.Branches,
+						Tags:         loc.Tags,
+						Path:         path,
+						Ext:          indexer.GetExt(path),
+						Size:         file.Size,
+					},
+					Content: content,
+				}
+				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
-			queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
-		}
+		}(blob, file)
 	}
+	wg.Wait()
 }
 
 func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, r *repo.GitRepo, delFiles map[string]repo.GitFile) {

@@ -104,6 +104,10 @@ func (r *GitRepo) FetchAll() error {
 func (r *GitRepo) GetBranches() ([]string, error) {
 	b, err := r.gitmRepo.GetBranches()
 	if err != nil {
+		// No commit case
+		if err.Error() == "exit status 1" {
+			return []string{}, nil
+		}
 		return nil, errors.Wrapf(err, `Failed to get branch list. cmd: "git show-ref --heads"`)
 	}
 	return b, nil

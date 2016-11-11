@@ -29,7 +29,6 @@ type Config struct {
 	SizeLimit    int64
 	Schedule     string
 	Debug        bool
-	PreFetchRefs bool
 	settings     []SyncSetting
 }
 
@@ -55,8 +54,7 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		IndexerType:  indexerType,
 		SizeLimit:    sizeLimit,
 		Schedule:     schedule,
-		Debug:        debug,
-		PreFetchRefs: false,
+		Debug:        false,
 	}
 
 	config.init()
