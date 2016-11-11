@@ -17,11 +17,13 @@ import (
 )
 
 var fileMutex sync.Mutex
+var indexedFileMutex sync.Mutex
 
 type Config struct {
 	DataDir      string
 	GitDataDir   string
 	ConfDir      string
+	IndexedDir   string
 	Port         int
 	IndexerType  string
 	SizeLimit    int64
@@ -31,18 +33,12 @@ type Config struct {
 	settings     []SyncSetting
 }
 
-type LatestIndex struct {
-	Organization string `json:"organization"`
-	Project      string `json:"project"`
-	Repository   string `json:"repository"`
-	Ref          string `json:"ref"`
-}
-
 func NewConfig(c *cli.Context, debug bool) *Config {
 	port := c.GlobalInt("port")
 	dataDir := c.GlobalString("data")
 	gitDataDir := dataDir + "/" + "git"
 	confDir := dataDir + "/" + "conf"
+	indexedDir := dataDir + "/" + "indexed"
 
 	indexerType := c.GlobalString("indexer")
 
@@ -54,6 +50,7 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		DataDir:      dataDir,
 		GitDataDir:   gitDataDir,
 		ConfDir:      confDir,
+		IndexedDir:   indexedDir,
 		Port:         port,
 		IndexerType:  indexerType,
 		SizeLimit:    sizeLimit,
@@ -72,6 +69,9 @@ func (c *Config) init() {
 		log.Fatalln(err)
 	}
 	if err := os.MkdirAll(c.ConfDir, 0644); err != nil {
+		log.Fatalln(err)
+	}
+	if err := os.MkdirAll(c.IndexedDir, 0644); err != nil {
 		log.Fatalln(err)
 	}
 	c.refreshSettings()
@@ -162,11 +162,8 @@ type SyncSetting interface {
 	GetSCM() map[string]string
 	SyncSCM() error
 	AddRepository(project string, repositoryUrl string) error
-	DeleteRefs(project string, repository string, removeBranches []string, removeTags []string)
 	FindProjectSetting(project string) (*ProjectSetting, bool)
 	FindRepositorySetting(project string, repository string) (*RepositorySetting, bool)
-	FindBranchSetting(project string, repository string, branch string) (*RefSetting, bool)
-	FindTagSetting(project string, repository string, tag string) (*RefSetting, bool)
 	JSON() (string, error)
 }
 
@@ -200,9 +197,7 @@ func (o *OrganizationSetting) AddRepository(project string, url string) error {
 			Name: project,
 			Repositories: []RepositorySetting{
 				RepositorySetting{
-					Url:      url,
-					Branches: []RefSetting{},
-					Tags:     []RefSetting{},
+					Url: url,
 				},
 			},
 		}
@@ -213,9 +208,7 @@ func (o *OrganizationSetting) AddRepository(project string, url string) error {
 	repositorySetting, ok := o.FindRepositorySetting(project, repoUrlToName(url))
 	if !ok {
 		repositorySetting = &RepositorySetting{
-			Url:      url,
-			Branches: []RefSetting{},
-			Tags:     []RefSetting{},
+			Url: url,
 		}
 		projectSetting.Repositories = append(projectSetting.Repositories, *repositorySetting)
 		return nil
@@ -246,74 +239,6 @@ func (o *OrganizationSetting) FindRepositorySetting(project string, repository s
 	return nil, false
 }
 
-func (o *OrganizationSetting) FindBranchSetting(project string, repository string, branch string) (*RefSetting, bool) {
-	repositorySetting, ok := o.FindRepositorySetting(project, repository)
-	if ok {
-		for i := range repositorySetting.Branches {
-			branchSetting := &repositorySetting.Branches[i]
-			if branchSetting.Name == branch {
-				return branchSetting, true
-			}
-		}
-	}
-	return &RefSetting{}, false
-}
-
-func (o *OrganizationSetting) FindTagSetting(project string, repository string, tag string) (*RefSetting, bool) {
-	repositorySetting, ok := o.FindRepositorySetting(project, repository)
-	if ok {
-		for i := range repositorySetting.Tags {
-			tagSetting := &repositorySetting.Tags[i]
-			if tagSetting.Name == tag {
-				return tagSetting, true
-			}
-		}
-	}
-	return &RefSetting{}, false
-}
-
-func (o *OrganizationSetting) DeleteRefs(project string, repository string, removeBranches []string, removeTags []string) {
-	repositorySetting, ok := o.FindRepositorySetting(project, repository)
-	if ok {
-		newBranchSettings := []RefSetting{}
-
-		// branches
-		for i := range repositorySetting.Branches {
-			branchSetting := repositorySetting.Branches[i]
-
-			found := false
-			for _, removeBranch := range removeBranches {
-				if branchSetting.Name == removeBranch {
-					found = true
-					break
-				}
-			}
-			if !found {
-				newBranchSettings = append(newBranchSettings, repositorySetting.Branches[i])
-			}
-		}
-		repositorySetting.Branches = newBranchSettings
-
-		// tags
-		newTagSettings := []RefSetting{}
-		for i := range repositorySetting.Tags {
-			tagSetting := repositorySetting.Tags[i]
-
-			found := false
-			for _, removeTag := range removeTags {
-				if tagSetting.Name == removeTag {
-					found = true
-					break
-				}
-			}
-			if !found {
-				newTagSettings = append(newTagSettings, repositorySetting.Tags[i])
-			}
-		}
-		repositorySetting.Tags = newTagSettings
-	}
-}
-
 func (o *OrganizationSetting) JSON() (string, error) {
 	b, err := json.MarshalIndent(o, "", "  ")
 	if err != nil {
@@ -328,10 +253,8 @@ type ProjectSetting struct {
 }
 
 type RepositorySetting struct {
-	Url      string       `json:"url"`
-	name     string       `json:"-"`
-	Branches []RefSetting `json:"branches,omitempty"`
-	Tags     []RefSetting `json:"tags,omitempty"`
+	Url  string `json:"url"`
+	name string `json:"-"`
 }
 
 func (r *RepositorySetting) GetName() string {
@@ -358,11 +281,6 @@ func repoUrlToName(repositoryUrl string) string {
 	return repoName
 }
 
-type RefSetting struct {
-	Name   string `json:"name"`
-	Latest string `json:"latest"`
-}
-
 func (c *Config) findSyncSetting(organization string) (SyncSetting, bool) {
 	for i := range c.settings {
 		if c.settings[i].GetName() == organization {
@@ -372,30 +290,24 @@ func (c *Config) findSyncSetting(organization string) (SyncSetting, bool) {
 	return nil, false
 }
 
-func (c *Config) GetRefs(organization string, project string, repository string) ([]RefSetting, []RefSetting, bool) {
+func (c *Config) GetIndexed(organization string, project string, repository string) Indexed {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	syncSetting, ok := c.findSyncSetting(organization)
-	if ok {
-		repositorySetting, ok := syncSetting.FindRepositorySetting(project, repository)
-		if ok {
-			return repositorySetting.Branches, repositorySetting.Tags, true
-		}
-	}
-
-	return nil, nil, false
+	return c.readIndexed(organization, project, repository)
 }
 
-func (c *Config) GetIndexedCommitID(organization string, project string, repository string, branch string) (string, bool) {
-	syncSetting, ok := c.findSyncSetting(organization)
-	if ok {
-		refSetting, ok := syncSetting.FindBranchSetting(project, repository, branch)
-		if ok {
-			return refSetting.Latest, true
-		}
+func (c *Config) readIndexed(organization string, project string, repository string) Indexed {
+	fileName := c.getIndexedFilePath(organization, project, repository)
+
+	content, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return Indexed{Organization: organization, Project: project, Repository: repository, Branches: make(BrancheIndexedMap), Tags: make(TagIndexedMap)}
 	}
-	return "", false
+	var indexed Indexed
+	json.Unmarshal(content, &indexed)
+
+	return indexed
 }
 
 func (c *Config) AddSetting(organization string, scmOptions map[string]string) error {
@@ -433,9 +345,7 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 					Name: project,
 					Repositories: []RepositorySetting{
 						RepositorySetting{
-							Url:      url,
-							Branches: []RefSetting{},
-							Tags:     []RefSetting{},
+							Url: url,
 						},
 					},
 				},
@@ -456,63 +366,29 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 	return nil
 }
 
-func (c *Config) UpdateLatestIndexedBranch(url string, organization string, project string, repository string, branch string, commitId string) error {
-	fileMutex.Lock()
-	defer fileMutex.Unlock()
+func (c *Config) UpdateIndexed(indexed Indexed) error {
+	indexedFileMutex.Lock()
+	defer indexedFileMutex.Unlock()
 
-	// update case
-	syncSetting, ok := c.findSyncSetting(organization)
-	if ok {
-		refSetting, ok := syncSetting.FindBranchSetting(project, repository, branch)
-		if ok {
-			refSetting.Latest = commitId
-		} else {
-			// add ref case
-			repositorySetting, ok := syncSetting.FindRepositorySetting(project, repository)
-			if ok {
-				repositorySetting.Branches = append(repositorySetting.Branches, RefSetting{Name: branch, Latest: commitId})
-			}
-		}
-		// write
-		return c.writeSetting(organization)
-	}
-	return nil
+	err := c.writeIndexed(indexed)
+	return err
 }
 
-func (c *Config) UpdateLatestIndexedTag(url string, organization string, project string, repository string, tag string, commitId string) error {
-	fileMutex.Lock()
-	defer fileMutex.Unlock()
+func (c *Config) DeleteIndexed(organization string, project string, repository string, removeBranches []string, removeTags []string) error {
+	indexedFileMutex.Lock()
+	defer indexedFileMutex.Unlock()
 
-	// update case
-	syncSetting, ok := c.findSyncSetting(organization)
-	if ok {
-		refSetting, ok := syncSetting.FindTagSetting(project, repository, tag)
-		if ok {
-			refSetting.Latest = commitId
-		} else {
-			// add ref case
-			repositorySetting, ok := syncSetting.FindRepositorySetting(project, repository)
-			if ok {
-				repositorySetting.Tags = append(repositorySetting.Tags, RefSetting{Name: tag, Latest: commitId})
-			}
-		}
-		// write
-		return c.writeSetting(organization)
-	}
-	return nil
-}
+	currentIndexed := c.readIndexed(organization, project, repository)
 
-func (c *Config) DeleteLatestIndexRefs(organization string, project string, repository string, removeBranches []string, removeTags []string) error {
-	fileMutex.Lock()
-	defer fileMutex.Unlock()
-
-	syncSetting, ok := c.findSyncSetting(organization)
-	if ok {
-		syncSetting.DeleteRefs(project, repository, removeBranches, removeTags)
-		return c.writeSetting(organization)
+	for _, removeBranch := range removeBranches {
+		delete(currentIndexed.Branches, removeBranch)
 	}
 
-	return errors.Errorf("Not found repository setting for %s:%s/%s", organization, project, repository)
+	for _, removeTag := range removeTags {
+		delete(currentIndexed.Tags, removeTag)
+	}
+
+	return c.writeIndexed(currentIndexed)
 }
 
 func (c *Config) writeSetting(organization string) error {
@@ -524,4 +400,25 @@ func (c *Config) writeSetting(organization string) error {
 	} else {
 		return errors.Errorf("Not found organization: %s", organization)
 	}
+}
+
+type Indexed struct {
+	Organization string            `json:"organization"`
+	Project      string            `json:"project"`
+	Repository   string            `json:"repository"`
+	Branches     BrancheIndexedMap `json:"branches"`
+	Tags         TagIndexedMap     `json:"tags"`
+}
+
+type BrancheIndexedMap map[string]string
+type TagIndexedMap map[string]string
+
+func (c *Config) writeIndexed(indexed Indexed) error {
+	content, _ := json.MarshalIndent(indexed, "", "  ")
+	fileName := c.getIndexedFilePath(indexed.Organization, indexed.Project, indexed.Repository)
+	return ioutil.WriteFile(fileName, content, os.ModePerm)
+}
+
+func (c *Config) getIndexedFilePath(organization string, project string, repository string) string {
+	return fmt.Sprintf("%s/%s/%s/%s.json", c.IndexedDir, organization, project, repository)
 }

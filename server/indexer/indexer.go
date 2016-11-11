@@ -44,7 +44,8 @@ type Metadata struct {
 	Organization string   `json:"organization"`
 	Project      string   `json:"project"`
 	Repository   string   `json:"repository"`
-	Refs         []string `json:"refs"`
+	Branches     []string `json:"branches"`
+	Tags         []string `json:"tags"`
 	Path         string   `json:"path"`
 	Ext          string   `json:"ext"`
 	Size         int64    `json:"size"`
@@ -118,7 +119,8 @@ type FilterParams struct {
 	Organizations []string `json:"o,omitempty"`
 	Projects      []string `json:"p,omitempty"`
 	Repositories  []string `json:"r,omitempty"`
-	Refs          []string `json:"b,omitempty"`
+	Branches      []string `json:"b,omitempty"`
+	Tags          []string `json:"t,omitempty"`
 }
 
 func getGitRepo(reader *repo.GitRepoReader, fileIndex *FileIndex) (*repo.GitRepo, error) {
@@ -126,14 +128,15 @@ func getGitRepo(reader *repo.GitRepoReader, fileIndex *FileIndex) (*repo.GitRepo
 	return repo, err
 }
 
-func NewFileIndex(blob string, organization string, project string, repo string, ref string, path string, content string) FileIndex {
+func NewFileIndex(blob string, organization string, project string, repo string, branch string, path string, content string) FileIndex {
 	fileIndex := FileIndex{
 		Metadata: Metadata{
 			Blob:         blob,
 			Organization: organization,
 			Project:      project,
 			Repository:   repo,
-			Refs:         []string{ref},
+			Branches:     []string{branch},
+			Tags:         []string{},
 			Path:         path,
 		},
 		Content: content,
@@ -157,9 +160,12 @@ func fillFileIndex(fileIndex *FileIndex) {
 	fileIndex.Metadata.Ext = ext
 
 	// full_refs
-	fullRefs := make([]string, 0, len(fileIndex.Metadata.Refs))
-	for _, ref := range fileIndex.Metadata.Refs {
-		fullRefs = append(fullRefs, fileIndex.Metadata.Organization+":"+fileIndex.Metadata.Project+"/"+fileIndex.Metadata.Repository+":"+ref)
+	fullRefs := make([]string, 0, len(fileIndex.Metadata.Branches)+len(fileIndex.Metadata.Tags))
+	for _, branch := range fileIndex.Metadata.Branches {
+		fullRefs = append(fullRefs, fileIndex.Metadata.Organization+":"+fileIndex.Metadata.Project+"/"+fileIndex.Metadata.Repository+":branch:"+branch)
+	}
+	for _, tag := range fileIndex.Metadata.Tags {
+		fullRefs = append(fullRefs, fileIndex.Metadata.Organization+":"+fileIndex.Metadata.Project+"/"+fileIndex.Metadata.Repository+":tag:"+tag)
 	}
 	fileIndex.FullRefs = fullRefs
 }
@@ -187,10 +193,28 @@ func getDocId(fileIndex *FileIndex) string {
 	return fmt.Sprintf("%s:%s:%s:%s:%s", fileIndex.Metadata.Organization, fileIndex.Metadata.Project, fileIndex.Metadata.Repository, fileIndex.Blob, fileIndex.Metadata.Path)
 }
 
-func mergeRef(fileIndex *FileIndex, refs []string) bool {
-	addRefs := []string{}
-	currentRefs := fileIndex.Metadata.Refs
+func mergeRef(fileIndex *FileIndex, branches []string, tags []string) bool {
+	currentBranches := fileIndex.Metadata.Branches
+	sameBranches, addBranches, addFullRefs := mergeRef2(fileIndex, branches, currentBranches, "branch")
+	if !sameBranches {
+		// Add case
+		fileIndex.Metadata.Branches = append(fileIndex.Metadata.Branches, addBranches...)
+		fileIndex.FullRefs = append(fileIndex.FullRefs, addFullRefs...)
+	}
 
+	currentTags := fileIndex.Metadata.Tags
+	sameTags, addTags, addFullRefs := mergeRef2(fileIndex, tags, currentTags, "tag")
+	if !sameTags {
+		// Add case
+		fileIndex.Metadata.Tags = append(fileIndex.Metadata.Tags, addTags...)
+		fileIndex.FullRefs = append(fileIndex.FullRefs, addFullRefs...)
+	}
+
+	return sameBranches && sameTags
+}
+
+func mergeRef2(fileIndex *FileIndex, refs []string, currentRefs []string, refType string) (bool, []string, []string) {
+	addRefs := []string{}
 	for i := range refs {
 		_, found := find(currentRefs, func(x string, j int) bool {
 			return refs[i] == x
@@ -202,26 +226,36 @@ func mergeRef(fileIndex *FileIndex, refs []string) bool {
 
 	// Same case
 	if len(addRefs) == 0 {
-		return true
+		return true, nil, nil
 	}
 
 	addFullRefs := make([]string, 0, len(addRefs))
 	for _, ref := range addRefs {
-		fullRef := fileIndex.Metadata.Organization + ":" + fileIndex.Metadata.Project + "/" + fileIndex.Metadata.Repository + ":" + ref
+		fullRef := fileIndex.Metadata.Organization + ":" + fileIndex.Metadata.Project + "/" + fileIndex.Metadata.Repository + ":" + refType + ":" + ref
 		addFullRefs = append(addFullRefs, fullRef)
 	}
 
-	// Add case
-	fileIndex.Metadata.Refs = append(fileIndex.Metadata.Refs, addRefs...)
-	fileIndex.FullRefs = append(fileIndex.FullRefs, addFullRefs...)
+	return false, addRefs, addFullRefs
+}
+
+func removeRef(fileIndex *FileIndex, branches []string, tags []string) bool {
+	newBranches := removeRef2(branches, fileIndex.Metadata.Branches)
+	newTags := removeRef2(branches, fileIndex.Metadata.Tags)
+
+	// All delete case
+	if len(newBranches) == 0 && len(newTags) == 0 {
+		return true
+	}
+
+	// Update case
+	fileIndex.Metadata.Branches = newBranches
+	fileIndex.Metadata.Tags = newTags
 
 	return false
 }
 
-func removeRef(fileIndex *FileIndex, refs []string) bool {
+func removeRef2(refs []string, currentRefs []string) []string {
 	newRefs := []string{}
-	currentRefs := fileIndex.Metadata.Refs
-
 	for i := range currentRefs {
 		_, found := find(refs, func(x string, j int) bool {
 			return currentRefs[i] == x
@@ -230,16 +264,7 @@ func removeRef(fileIndex *FileIndex, refs []string) bool {
 			newRefs = append(newRefs, currentRefs[i])
 		}
 	}
-
-	// All delete case
-	if len(newRefs) == 0 {
-		return true
-	}
-
-	// Update case
-	fileIndex.Metadata.Refs = newRefs
-
-	return false
+	return newRefs
 }
 
 func mergeSet(m1, m2 map[string]struct{}) map[string]struct{} {

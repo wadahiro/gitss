@@ -117,7 +117,7 @@ func (r *GitRepo) GetTags() ([]string, error) {
 	return t, nil
 }
 
-func (r *GitRepo) GetLatestCommitIdsMap(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (map[string]string, map[string]string, error) {
+func (r *GitRepo) GetLatestCommitIdsMap(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (config.BrancheIndexedMap, config.TagIndexedMap, error) {
 	branches, err := r.GetBranches()
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "Failed to get branch list")
@@ -153,8 +153,8 @@ func (r *GitRepo) GetLatestCommitIdsMap(includeBranches []string, includeTags []
 		return nil, nil, errors.Wrapf(err, `Failed to get branch commitIds. cmd: "show-ref --verify %s"`, strings.Join(b, " "))
 	}
 
-	resultBranches := make(map[string]string)
-	resultTags := make(map[string]string)
+	resultBranches := make(config.BrancheIndexedMap)
+	resultTags := make(config.TagIndexedMap)
 
 	rows := strings.Split(stdout, "\n")
 	for _, row := range rows[:len(rows)-1] {
@@ -397,6 +397,87 @@ func (r *GitRepo) GetFileEntriesMap(branchesMap map[string]string, tagsMap map[s
 	return files, nil
 }
 
+func (r *GitRepo) GetDiffFileEntriesMap(branchesMap map[string][2]string, tagsMap map[string][2]string) (map[string]GitFile, map[string]GitFile, error) {
+	addFiles := make(map[string]GitFile) // key is blob
+	delFiles := make(map[string]GitFile) // key is file path
+
+	err := r.processDiffMap(branchesMap, addFiles, delFiles, func(location *GitFileLocation, branch string) *GitFileLocation {
+		if location == nil {
+			return &GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+		}
+		location.Branches = append(location.Branches, branch)
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get diff file entries of branches")
+	}
+
+	err = r.processDiffMap(tagsMap, addFiles, delFiles, func(location *GitFileLocation, tag string) *GitFileLocation {
+		if location == nil {
+			return &GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+		}
+		location.Tags = append(location.Tags, tag)
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get diff file entries of tags")
+	}
+
+	return addFiles, delFiles, nil
+}
+
+func (r *GitRepo) processDiffMap(refsMap map[string][2]string, addFiles map[string]GitFile, delFiles map[string]GitFile, callback func(location *GitFileLocation, ref string) *GitFileLocation) error {
+	for ref, fromTo := range refsMap {
+		addEntries, delEntries, err := r.GetDiffList(fromTo[0], fromTo[1])
+		if err != nil {
+			return errors.Wrapf(err, "Failed to get diff file entries of ref %s %s..%s", ref, fromTo[0], fromTo[1])
+		}
+
+		for _, entry := range addEntries {
+			_, ok := addFiles[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = *callback(nil, ref)
+				// locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				addFiles[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := addFiles[entry.Blob].Locations[entry.Path]
+				if !ok {
+					addFiles[entry.Blob].Locations[entry.Path] = *callback(nil, ref)
+				} else {
+					location := addFiles[entry.Blob].Locations[entry.Path]
+					callback(&location, ref)
+					// location.Branches = append(location.Branches, branch)
+					addFiles[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+
+		for _, entry := range delEntries {
+			_, ok := delFiles[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = *callback(nil, ref)
+				// locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				delFiles[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := delFiles[entry.Blob].Locations[entry.Path]
+				if !ok {
+					delFiles[entry.Blob].Locations[entry.Path] = *callback(nil, ref)
+				} else {
+					location := delFiles[entry.Blob].Locations[entry.Path]
+					callback(&location, ref)
+					// location.Branches = append(location.Branches, branch)
+					delFiles[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(fileEntry FileEntry, status string)) error {
 	// see https://git-scm.com/docs/diff
 	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
@@ -468,73 +549,20 @@ func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(f
 }
 
 func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry, error) {
-	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	addList := []FileEntry{}
 	delList := []FileEntry{}
 
-	parts := bytes.Split(stdout, []byte{'\u0000'})
-
-	// fmt.Println(len(parts))
-
-	for index := 0; index < len(parts); index++ {
-		row := parts[index]
-		cols := bytes.Fields(row)
-
-		if len(cols) <= 1 {
-			continue
-		}
-
-		// fmt.Println("col", len(cols))
-
-		oldBlob := string(cols[2])
-		newBlob := string(cols[3])
-		status := string(cols[4])[0:1]
-
-		// fmt.Println(string(row))
-		// fmt.Println(oldBlob, newBlob, status)
-
-		// See 'Possible status letters' in https://git-scm.com/docs/git-diff
+	err := r.GetDiffEntriesIterator(from, to, func(fileEntry FileEntry, status string) {
 		switch status {
-		case "A": // Add case
-			index++
-			path := string(parts[index])
-			addList = append(addList, FileEntry{Blob: newBlob, Path: path})
-
-		case "C": // Copy case
-			index = index + 2
-			toPath := string(parts[index])
-			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
-
-		case "D": // Delete case
-			index++
-			path := string(parts[index])
-			delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
-
-		case "M", "T": // Modify case and change in the type of the file case
-			index++
-			if oldBlob != newBlob {
-				path := string(parts[index])
-				delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
-				addList = append(addList, FileEntry{Blob: newBlob, Path: path})
-			}
-
-		case "R": // Rename case
-			index++
-			fromPath := string(parts[index])
-			index++
-			toPath := string(parts[index])
-			delList = append(delList, FileEntry{Blob: oldBlob, Path: fromPath})
-			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
-
-		case "U": // Unmerge case
-			continue
-		case "X": // Delete case
-			log.Println("unknown change type (most probably a git bug, please report it)")
+		case "A":
+			addList = append(addList, fileEntry)
+		case "D":
+			delList = append(delList, fileEntry)
 		}
+	})
+
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return addList, delList, nil

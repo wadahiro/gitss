@@ -41,8 +41,12 @@ class SearchView extends React.Component<Props, void> {
         Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
     };
 
-    handleRefsToggle = (term: string) => {
+    handleBranchesToggle = (term: string) => {
         Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
+    };
+
+    handleTagsToggle = (term: string) => {
+        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('t', this.props.filterParams, term));
     };
 
     showPage = (page: number) => {
@@ -139,9 +143,13 @@ class SearchView extends React.Component<Props, void> {
                             selected={filterParams.r}
                             onToggle={this.handleRepositoryToggle} />
                         <FacetPanel title='Branches'
-                            facet={facets.facets['refs']}
+                            facet={facets.facets['branches']}
                             selected={filterParams.b}
-                            onToggle={this.handleRefsToggle} />
+                            onToggle={this.handleBranchesToggle} />
+                        <FacetPanel title='Tags'
+                            facet={facets.facets['tags']}
+                            selected={filterParams.t}
+                            onToggle={this.handleTagsToggle} />
 
                     </Col>
                     <Col size='is9'>

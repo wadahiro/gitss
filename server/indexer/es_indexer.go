@@ -210,7 +210,7 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 			return err
 		}
 
-		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Refs)
+		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Branches,  requestFileIndex.Metadata.Tags)
 
 		if same {
 			if e.debug {

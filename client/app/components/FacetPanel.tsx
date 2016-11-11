@@ -15,7 +15,7 @@ interface FacetPanelProps {
 }
 
 export function FacetPanel(props: FacetPanelProps) {
-    if (!props.facet || !props.facet.terms) {
+    if (!props.facet || !props.facet.terms || props.facet.terms.length === 0) {
         return null;
     }
 

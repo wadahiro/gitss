@@ -92,7 +92,20 @@ var MAPPING = []byte(`{
 					}],
 					"default_analyzer": ""
 				},
-				"refs": {
+				"branches": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": false,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
+				"tags": {
 					"enabled": true,
 					"dynamic": true,
 					"fields": [{
@@ -269,7 +282,7 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 	}
 	defer client.Close()
 
-	b.searchByRefs(client, organization, project, repository, branches, func(searchResult *bleve.SearchResult) {
+	b.searchByRefs(client, organization, project, repository, branches, tags, func(searchResult *bleve.SearchResult) {
 		batch := client.NewBatch()
 
 		for i := range searchResult.Hits {
@@ -279,7 +292,7 @@ func (b *BleveIndexer) DeleteIndexByRefs(organization string, project string, re
 				fmt.Println(err)
 				continue
 			}
-			err = b.deleteByDoc(client, doc, branches, batch)
+			err = b.deleteByDoc(client, doc, branches, tags, batch)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -326,7 +339,7 @@ func (b *BleveIndexer) upsert(client bleve.Index, requestFileIndex FileIndex, ba
 	fileIndex := docToFileIndex(doc)
 
 	// Merge ref
-	same := mergeRef(fileIndex, requestFileIndex.Metadata.Refs)
+	same := mergeRef(fileIndex, requestFileIndex.Metadata.Branches, requestFileIndex.Metadata.Tags)
 
 	if same {
 		if b.debug {
@@ -353,16 +366,16 @@ func (b *BleveIndexer) delete(client bleve.Index, requestFileIndex FileIndex, ba
 	if err != nil {
 		return err
 	}
-	return b.deleteByDoc(client, doc, requestFileIndex.Metadata.Refs, batch)
+	return b.deleteByDoc(client, doc, requestFileIndex.Metadata.Branches, requestFileIndex.Metadata.Tags, batch)
 }
 
-func (b *BleveIndexer) deleteByDoc(client bleve.Index, doc *document.Document, refs []string, batch *bleve.Batch) error {
+func (b *BleveIndexer) deleteByDoc(client bleve.Index, doc *document.Document, branches []string, tags []string, batch *bleve.Batch) error {
 	if doc != nil {
 		// Restore fileIndex from index
 		fileIndex := docToFileIndex(doc)
 
 		// Remove ref
-		allRemoved := removeRef(fileIndex, refs)
+		allRemoved := removeRef(fileIndex, branches, tags)
 
 		if allRemoved {
 			err := b._delete(client, doc.ID, batch)
@@ -393,7 +406,9 @@ func (b *BleveIndexer) _index(client bleve.Index, f *FileIndex, batch *bleve.Bat
 	if batch == nil {
 		return client.Index(getDocId(f), f)
 	} else {
-		fmt.Println(getDocId(f))
+		if b.debug {
+			fmt.Println(getDocId(f))
+		}
 		return batch.Index(getDocId(f), f)
 	}
 }
@@ -435,18 +450,25 @@ func (b *BleveIndexer) Exists(fileIndex FileIndex) (bool, error) {
 	return false, err
 }
 
-func (b *BleveIndexer) searchByRefs(client bleve.Index, organization string, project string, repository string, refs []string, callback func(searchResult *bleve.SearchResult)) error {
+func (b *BleveIndexer) searchByRefs(client bleve.Index, organization string, project string, repository string, branches []string, tags []string, callback func(searchResult *bleve.SearchResult)) error {
 	oq := bleve.NewQueryStringQuery("organization:" + organization)
 	pq := bleve.NewQueryStringQuery("project:" + project)
 	rq := bleve.NewQueryStringQuery("repository:" + repository)
 	q1 := bleve.NewConjunctionQuery(oq, pq, rq)
 
 	q2 := bleve.NewDisjunctionQuery()
-	for _, ref := range refs {
-		rq := bleve.NewQueryStringQuery("refs:" + ref)
+	for _, branch := range branches {
+		rq := bleve.NewQueryStringQuery("branches:" + branch)
 		q2.AddQuery(rq)
 	}
-	s := bleve.NewSearchRequest(bleve.NewConjunctionQuery(q1, q2))
+
+	q3 := bleve.NewDisjunctionQuery()
+	for _, tag := range tags {
+		rq := bleve.NewQueryStringQuery("tags:" + tag)
+		q3.AddQuery(rq)
+	}
+
+	s := bleve.NewSearchRequest(bleve.NewConjunctionQuery(q1, q2, q3))
 	s.From = 0
 	s.Size = 100
 
@@ -532,7 +554,8 @@ func (b *BleveIndexer) search(client bleve.Index, queryString string, filterPara
 	q = appendFilters(q, filterParams.Organizations, "organization", false)
 	q = appendFilters(q, filterParams.Projects, "project", false)
 	q = appendFilters(q, filterParams.Repositories, "repository", false)
-	q = appendFilters(q, filterParams.Refs, "refs", false)
+	q = appendFilters(q, filterParams.Branches, "branches", false)
+	q = appendFilters(q, filterParams.Tags, "tags", false)
 
 	s := bleve.NewSearchRequest(q)
 
@@ -544,14 +567,16 @@ func (b *BleveIndexer) search(client bleve.Index, queryString string, filterPara
 	organizationFacet := bleve.NewFacetRequest("organization", 100)
 	projectFacet := bleve.NewFacetRequest("project", 100)
 	repositoryFacet := bleve.NewFacetRequest("repository", 100)
-	refsFacet := bleve.NewFacetRequest("refs", 100)
+	branchesFacet := bleve.NewFacetRequest("branches", 100)
+	tagsFacet := bleve.NewFacetRequest("tags", 100)
 
 	s.AddFacet("fullRefs", fullRefsFacet)
 	s.AddFacet("ext", extFacet)
 	s.AddFacet("organization", organizationFacet)
 	s.AddFacet("project", projectFacet)
 	s.AddFacet("repository", repositoryFacet)
-	s.AddFacet("refs", refsFacet)
+	s.AddFacet("branches", branchesFacet)
+	s.AddFacet("tags", tagsFacet)
 
 	s.Fields = []string{"blob", "fullRefs", "organization", "project", "repository", "refs", "path", "ext"}
 	s.Highlight = bleve.NewHighlight()
@@ -765,7 +790,8 @@ func isRef(path string) (bool, string) {
 func docToFileIndex(doc *document.Document) *FileIndex {
 	var fileIndex FileIndex
 	fullRefsMap := map[uint64]string{}
-	refsMap := map[uint64]string{}
+	branchesMap := map[uint64]string{}
+	tagsMap := map[uint64]string{}
 
 	for i := range doc.Fields {
 		f := doc.Fields[i]
@@ -795,11 +821,18 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 		case "repository":
 			fileIndex.Metadata.Repository = value
 
-		case "refs":
+		case "branches":
 			pos := f.ArrayPositions()[0]
-			_, ok := refsMap[pos]
+			_, ok := branchesMap[pos]
 			if !ok {
-				refsMap[pos] = value
+				branchesMap[pos] = value
+			}
+
+		case "tags":
+			pos := f.ArrayPositions()[0]
+			_, ok := branchesMap[pos]
+			if !ok {
+				branchesMap[pos] = value
 			}
 
 		case "path":
@@ -833,12 +866,19 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 	// Restored!
 	fileIndex.FullRefs = fullRefs
 
-	refs := make([]string, len(refsMap))
-	for k, v := range refsMap {
-		refs[k] = v
+	branches := make([]string, len(branchesMap))
+	for k, v := range branchesMap {
+		branches[k] = v
 	}
 	// Restored!
-	fileIndex.Metadata.Refs = refs
+	fileIndex.Metadata.Branches = branches
+
+	tags := make([]string, len(tagsMap))
+	for k, v := range tagsMap {
+		tags[k] = v
+	}
+	// Restored!
+	fileIndex.Metadata.Tags = tags
 
 	return &fileIndex
 }

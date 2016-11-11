@@ -33,7 +33,8 @@ export interface FilterParams {
     o?: string[]; // organization
     p?: string[]; // project
     r?: string[]; // repository
-    b?: string[]; // refs
+    b?: string[]; // branches
+    t?: string[]; // tags
 }
 
 export interface SearchFacets {
@@ -71,7 +72,8 @@ export interface FileMetadata {
     organization: string;
     project: string;
     repository: string;
-    refs: string[];
+    branches: string[];
+    tags: string[];
     path: string;
     ext: string;
 }

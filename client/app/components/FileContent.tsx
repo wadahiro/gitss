@@ -89,7 +89,14 @@ export class FileContent extends React.Component<Props, State>{
         return (
             <div>
                 <div style={styles.wrapper}>
-                    {metadata.refs.map(x => {
+                    {metadata.branches.map(x => {
+                        return (
+                            <Tag key={x}>{x}</Tag>
+                        );
+                    })}
+                </div>
+                <div style={styles.wrapper}>
+                    {metadata.tags.map(x => {
                         return (
                             <Tag key={x}>{x}</Tag>
                         );

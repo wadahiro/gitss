@@ -25,6 +25,7 @@ func SearchIndex(c *gin.Context) {
 		projects, _ := c.Request.Form["p"]
 		repositories, _ := c.Request.Form["r"]
 		branches, _ := c.Request.Form["b"]
+		tags, _ := c.Request.Form["t"]
 
 		reqPage, ok := c.Request.Form["i"]
 		page := 0
@@ -35,7 +36,7 @@ func SearchIndex(c *gin.Context) {
 			}
 		}
 
-		result, err := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Refs: branches}, page)
+		result, err := i.SearchQuery(q[0], indexer.FilterParams{Exts: exts, Organizations: organizations, Projects: projects, Repositories: repositories, Branches: branches, Tags: tags}, page)
 
 		if err != nil {
 			c.AbortWithError(500, err)
