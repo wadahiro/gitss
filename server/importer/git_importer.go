@@ -16,6 +16,10 @@ import (
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
 	// "github.com/wadahiro/gitss/server/util"
+	"bytes"
+
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
 )
 
 type GitImporter struct {
@@ -268,6 +272,12 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, r *r
 					continue
 				}
 
+				text, encoding, err := readText(content)
+				if err != nil {
+					text = string(content)
+					encoding = "utf8"
+				}
+
 				fileIndex := indexer.FileIndex{
 					Metadata: indexer.Metadata{
 						Blob:         blob,
@@ -278,15 +288,46 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, r *r
 						Tags:         loc.Tags,
 						Path:         path,
 						Ext:          indexer.GetExt(path),
+						Encoding:     encoding,
 						Size:         file.Size,
 					},
-					Content: content,
+					Content: text,
 				}
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
 		}(blob, file)
 	}
 	wg.Wait()
+}
+
+// How to detect encoding
+// http://qiita.com/nobuhito/items/ff782f64e32f7ed95e43
+func readText(body []byte) (string, string, error) {
+	var f []byte
+	encodings := []string{"shift_jis", "utf8"}
+	var enc string
+	for i := range encodings {
+		enc = encodings[i]
+		if enc != "" {
+			ee, _ := charset.Lookup(enc)
+			if ee == nil {
+				continue
+			}
+			var buf bytes.Buffer
+			ic := transform.NewWriter(&buf, ee.NewDecoder())
+			_, err := ic.Write(body)
+			if err != nil {
+				continue
+			}
+			err = ic.Close()
+			if err != nil {
+				continue
+			}
+			f = buf.Bytes()
+			break
+		}
+	}
+	return string(f), enc, nil
 }
 
 func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
@@ -309,12 +350,12 @@ func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, r *r
 	}
 }
 
-func (g *GitImporter) parseContent(repo *repo.GitRepo, blob string) (string, string, error) {
+func (g *GitImporter) parseContent(repo *repo.GitRepo, blob string) (string, []byte, error) {
 	contentType, content, err := repo.DetectBlobContentType(blob)
 	if err != nil {
-		return "", "", errors.Wrapf(err, "Failed to read contentType. %s", blob)
+		return "", nil, errors.Wrapf(err, "Failed to read contentType. %s", blob)
 	}
-	return string(contentType), string(content), nil
+	return contentType, content, nil
 }
 
 func getLoggingTag(repo *repo.GitRepo, ref string, commitId string) string {

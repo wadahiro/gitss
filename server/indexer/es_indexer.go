@@ -210,7 +210,7 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 			return err
 		}
 
-		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Branches,  requestFileIndex.Metadata.Tags)
+		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Branches, requestFileIndex.Metadata.Tags)
 
 		if same {
 			if e.debug {
@@ -277,9 +277,9 @@ func (e *ESIndexer) search(query string) SearchResult {
 		Query(q). // specify the query
 		Highlight(elastic.NewHighlight().Field("content").PreTags(PRE_TAG).PostTags(POST_TAG)).
 		Sort("path", true). // sort by "user" field, ascending
-		From(0).Size(10).            // take documents 0-9
-		Pretty(true).                // pretty print request and response JSON
-		Do()                         // execute
+		From(0).Size(10).   // take documents 0-9
+		Pretty(true).       // pretty print request and response JSON
+		Do()                // execute
 
 	if err != nil {
 		log.Println("error", err)
@@ -310,7 +310,7 @@ func (e *ESIndexer) search(query string) SearchResult {
 			}
 
 			// make preview
-			preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
+			preview := gitRepo.FilterBlob(s.Blob, s.Encoding, func(line string) bool {
 				for k, _ := range hitWordsSet {
 					if strings.Contains(line, k) {
 						log.Println(k)

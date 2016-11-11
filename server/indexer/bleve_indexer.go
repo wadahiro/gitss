@@ -144,6 +144,19 @@ var MAPPING = []byte(`{
 					}],
 					"default_analyzer": ""
 				},
+				"encoding": {
+					"enabled": true,
+					"dynamic": true,
+					"fields": [{
+						"type": "text",
+						"analyzer": "keyword",
+						"store": true,
+						"index": true,
+						"include_term_vectors": true,
+						"include_in_all": false
+					}],
+					"default_analyzer": ""
+				},
 				"size": {
 					"enabled": true,
 					"dynamic": true,
@@ -630,7 +643,7 @@ func (b *BleveIndexer) search(client bleve.Index, queryString string, filterPara
 		}
 
 		// make preview
-		preview := gitRepo.FilterBlob(fileIndex.Blob, func(line string) bool {
+		preview := gitRepo.FilterBlob(fileIndex.Blob, fileIndex.Encoding, func(line string) bool {
 			for k, _ := range hitWordSet {
 				if strings.Contains(strings.ToLower(line), strings.ToLower(k)) {
 					return true
@@ -840,6 +853,9 @@ func docToFileIndex(doc *document.Document) *FileIndex {
 
 		case "ext":
 			fileIndex.Metadata.Ext = value
+
+		case "encoding":
+			fileIndex.Metadata.Encoding = value
 
 		case "size":
 			nf, ok := f.(*document.NumericField)

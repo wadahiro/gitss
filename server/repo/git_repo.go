@@ -24,6 +24,9 @@ import (
 	// "gopkg.in/src-d/go-git.v4"
 	// core "gopkg.in/src-d/go-git.v4/core"
 	"github.com/pkg/errors"
+
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
 )
 
 type GitRepoReader struct {
@@ -220,42 +223,6 @@ func (r *GitRepo) GetBlobContent(blob string) ([]byte, error) {
 	return b, nil
 }
 
-// type ContentTypeWriter struct {
-// 	pos   int
-// 	bytes [512]byte
-// }
-
-// func (w *ContentTypeWriter) Write(p []byte) (n int, err error) {
-// 	end := w.pos + len(p)
-// 	if end > 512 {
-// 		end = 512
-// 	}
-
-// 	copy(w.bytes[w.pos:end], p)
-// 	w.pos = end
-
-// 	return len(p), nil
-// }
-
-// func (r *GitRepo) DetectBlobContentType2(blob string) (string, error) {
-// 	// Only the first 512 bytes are used to sniff the content type.
-// 	stdout := new(ContentTypeWriter)
-// 	stderr := new(bytes.Buffer)
-// 	err := gitm.NewCommand("cat-file", "-p", blob).RunInDirPipeline(r.Path, stdout, stderr)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	if r.config.Debug {
-// 		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
-// 	}
-
-// 	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
-// 	contentType := http.DetectContentType(stdout.bytes[:])
-
-// 	return contentType, nil
-// }
-
 func (r *GitRepo) DetectBlobContentType(blob string) (string, []byte, error) {
 	b, err := gitm.NewCommand("cat-file", "-p", blob).RunInDirBytes(r.Path)
 	if err != nil {
@@ -268,8 +235,17 @@ func (r *GitRepo) DetectBlobContentType(blob string) (string, []byte, error) {
 	return contentType, b, nil
 }
 
-func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
+func (r *GitRepo) FilterBlob(blobId string, encoding string, filter func(line string) bool, before int, after int) []util.TextPreview {
 	b, _ := r.GetBlobContent(blobId)
+
+	if encoding != "" || encoding != "utf8" {
+		ee, _ := charset.Lookup(encoding)
+		var buf bytes.Buffer
+		ic := transform.NewWriter(&buf, ee.NewDecoder())
+		ic.Write(b)
+		b = buf.Bytes()
+	}
+
 	reader := strings.NewReader(string(b))
 
 	previews := util.FilterTextPreview(reader, filter, before, after)

@@ -49,6 +49,7 @@ type Metadata struct {
 	Path         string   `json:"path"`
 	Ext          string   `json:"ext"`
 	Size         int64    `json:"size"`
+	Encoding     string   `json:"encoding"`
 }
 
 type SearchResult struct {
