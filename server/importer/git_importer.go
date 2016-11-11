@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	pb "gopkg.in/cheggaaa/pb.v1"
 	// "io"
 	// "io/ioutil"
 	// "os"
@@ -60,9 +62,13 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, repo.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
 
+	// progress bar
+	bar := pb.StartNew(0)
+	bar.ShowPercent = true
+
 	start := time.Now()
 
-	err = g.runIndexing(repo, url, indexed, branchMap, tagMap)
+	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap)
 	if err != nil {
 		log.Printf("Failed to index. %+v", err)
 		return
@@ -83,6 +89,8 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 		}
 	}
 
+	bar.Total = bar.Total + int64(len(removeBranches))
+
 	// Remove index for removed tags
 	removeTags := []string{}
 	for ref, _ := range indexed.Tags {
@@ -98,9 +106,13 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 		}
 	}
 
+	bar.Total = bar.Total + int64(len(removeTags))
+
 	if len(removeBranches) > 0 || len(removeTags) > 0 {
 		log.Printf("Start index deleting for %s:%s/%s (%v) (%v)\n", organization, project, repo.Repository, removeBranches, removeTags)
 		g.indexer.DeleteIndexByRefs(organization, project, repo.Repository, removeBranches, removeTags)
+
+		bar.Add(len(removeBranches) + len(removeTags))
 
 		// Save config after deleting index completed
 		g.config.DeleteIndexed(organization, project, repo.Repository, removeBranches, removeTags)
@@ -108,10 +120,11 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	end := time.Now()
 	time := (end.Sub(start)).Seconds()
-	log.Printf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository)
+
+	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository))
 }
 
-func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap) error {
+func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap) error {
 	// collect create file entries
 	createBranches := make(map[string]string)
 	updateBranches := make(map[string][2]string)
@@ -156,15 +169,16 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 	queue := make(chan indexer.FileIndexOperation, 100)
 
 	// process
-	g.UpsertIndex(queue, repo, createBranches, createTags, updateBranches, updateTags)
+	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags)
 
 	callBach := func(operations []indexer.FileIndexOperation) {
 		err := g.indexer.BatchFileIndex(operations)
 		if err != nil {
 			errors.Errorf("Batch indexed error: %+v", err)
 		} else {
-			fmt.Printf("Batch indexed %d files.\n", len(operations))
+			// fmt.Printf("Batch indexed %d files.\n", len(operations))
 		}
+		bar.Add(len(operations))
 	}
 
 	// batch
@@ -179,13 +193,13 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 		opsSize += op.FileIndex.Size
 
 		// show progress
-		if len(operations)%80 == 0 {
-			fmt.Printf("\n")
-		}
-		fmt.Printf(".")
+		// if len(operations)%80 == 0 {
+		// 	fmt.Printf("\n")
+		// }
+		// fmt.Printf(".")
 
 		if opsSize >= batchLimitSize {
-			fmt.Printf("\n")
+			// fmt.Printf("\n")
 
 			callBach(operations)
 
@@ -197,7 +211,7 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 
 	// remains
 	if len(operations) > 0 {
-		fmt.Printf("\n")
+		// fmt.Printf("\n")
 		callBach(operations)
 	}
 
@@ -211,7 +225,7 @@ func (g *GitImporter) runIndexing(repo *repo.GitRepo, url string, indexed config
 	return nil
 }
 
-func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string) error {
+func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string) error {
 	addFiles, err := r.GetFileEntriesMap(branchMap, tagMap)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to get file entries. branches: %v tags: %v", branchMap, tagMap)
@@ -227,9 +241,9 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, r *repo
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.handleAddFiles(queue, r, addFiles)
-		g.handleAddFiles(queue, r, updateAddFiles)
-		g.handleDelFiles(queue, r, delFiles)
+		g.handleAddFiles(queue, bar, r, addFiles)
+		g.handleAddFiles(queue, bar, r, updateAddFiles)
+		g.handleDelFiles(queue, bar, r, delFiles)
 	}()
 
 	go func() {
@@ -240,7 +254,7 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, r *repo
 	return nil
 }
 
-func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
+func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
 	if len(addFiles) == 0 {
 		return
 	}
@@ -293,6 +307,9 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, r *r
 					},
 					Content: text,
 				}
+
+				bar.Total = bar.Total + 1
+
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
 		}(blob, file)
@@ -330,7 +347,7 @@ func readText(body []byte) (string, string, error) {
 	return string(f), enc, nil
 }
 
-func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
+func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
 	for blob, file := range delFiles {
 		for path, loc := range file.Locations {
 			fileIndex := indexer.FileIndex{
@@ -344,6 +361,9 @@ func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, r *r
 					Path:         path,
 				},
 			}
+
+			bar.Total = bar.Total + 1
+
 			// Delete index
 			queue <- indexer.FileIndexOperation{Method: indexer.DELETE, FileIndex: fileIndex}
 		}

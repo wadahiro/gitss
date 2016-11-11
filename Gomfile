@@ -12,3 +12,4 @@ gom 'github.com/elazarl/go-bindata-assetfs', :commit => 'd5cac425555ca5cf00694df
 gom 'github.com/jteeuwen/go-bindata'
 gom 'github.com/mitchellh/gox'
 gom 'gopkg.in/olivere/elastic.v3'
+gom 'gopkg.in/cheggaaa/pb.v1'
