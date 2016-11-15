@@ -37,6 +37,15 @@ export interface FilterParams {
     t?: string[]; // tags
 }
 
+const FILTER_PARAMS_MAP = {
+    x: 'ext',
+    o: 'organization',
+    p: 'project',
+    r: 'repository',
+    b: 'branches',
+    t: 'tags'
+};
+
 export interface SearchFacets {
     facets: Facets;
     fullRefsFacet: OranizationFacet[];
@@ -146,43 +155,74 @@ function init(): AppState {
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
         case 'SET_QUERY':
-            return Object.assign({}, state, {
+            return {
+                ...state,
                 query: action.payload.query
-            });
+            }
         case 'SEARCH_START':
-            return Object.assign({}, state, {
+            return {
+                ...state,
                 loading: true,
                 filterParams: action.payload.filterParams || {}
-            });
+            }
         case 'SEARCH':
         case 'SEARCH_FILTER':
             const searchResult: SearchResult = action.payload.result;
 
             let facets = {
                 facets: searchResult.facets,
+                initialFacets: {},
                 fullRefsFacet: searchResult.fullRefsFacet
             };
             let filterParams = searchResult.filterParams;
 
             if (action.type === 'SEARCH_FILTER') {
-                // same query, so don't change facet view!
-                facets = state.facets;
+                // same query, so don't reduce facet items. we need to update the values.
+
+                facets.facets = Object.keys(FILTER_PARAMS_MAP).reduce((s, k) => {
+                    const noSeleted = filterParams[k] === undefined;
+                    const facetKey = FILTER_PARAMS_MAP[k];
+                    s[facetKey] = {
+                        ...state.facets.facets[facetKey],
+                        terms: mergeTerms(state.facets.facets, searchResult.facets, facetKey, noSeleted)
+                    };
+                    return s;
+                }, {} as Facets);
             } else {
                 // search with new keyword
                 filterParams = {};
             }
 
-            return Object.assign({}, state, {
+            return {
+                ...state,
                 lastQuery: searchResult.query,
                 filterParams: fillFilterParams(filterParams),
                 result: searchResult,
                 facets,
                 loading: false
-            });
+            }
     }
 
     return state;
 };
+
+function mergeTerms(prev: Facets, next: Facets, key: string, noSeleted: boolean): Term[] {
+    const prevTerms = prev[key] ? prev[key].terms : [];
+    const nextTerms = next[key] ? next[key].terms : [];
+    return prevTerms.map(x => {
+        const nextTerm = nextTerms.find(y => x.term === y.term);
+        if (nextTerm) {
+            if (noSeleted) {
+                x.count = nextTerm.count;
+            }
+        } else {
+            if (noSeleted) {
+                x.count = 0;
+            }
+        }
+        return x;
+    });
+}
 
 function fillFilterParams(filterParams: FilterParams): FilterParams {
     return filterParams;
