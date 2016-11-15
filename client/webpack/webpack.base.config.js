@@ -45,7 +45,7 @@ module.exports = {
       {
         test: /\.ts(x?)$/,
         exclude: [/node_modules/],
-        loaders: ['babel-loader?cacheDirectory=true', 'awesome-typescript-loader?forkChecker=true']
+        loaders: ['babel-loader?cacheDirectory=true', 'ts-loader?transpileOnly=true']
       },
       //   {
       //     test: /\.css$/,
