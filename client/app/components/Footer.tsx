@@ -6,12 +6,10 @@ interface FooterProps extends React.HTMLAttributes {
 }
 
 const defaultStyle = {
-    color: '#fff',
-    backgroundColor: '#3572b0'
 };
 
 export class Footer extends React.PureComponent<FooterProps, void> {
     render() {
-        return <BFooter {...this.props} >{this.props.children}</BFooter>;
+        return <BFooter style={defaultStyle} {...this.props} >{this.props.children}</BFooter>;
     }
 }

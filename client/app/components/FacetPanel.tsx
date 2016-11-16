@@ -7,14 +7,27 @@ import { Facet, FilterParams } from '../reducers';
 
 interface FacetPanelProps {
     title: string;
-    selected: string[];
+    selected?: string[];
     facet: Facet;
-    onToggle: (term: string) => void;
+    onToggle: (term: string[]) => void;
     emptyKeyword?: string;
     emptyLabel?: string;
 }
 
 export class FacetPanel extends React.PureComponent<FacetPanelProps, void> {
+    static defaultProps = {
+        selected: []
+    };
+
+    handleToggle = (term: string) => {
+        const found = this.props.selected.find(x => x === term);
+        if (found) {
+            this.props.onToggle(this.props.selected.filter(x => x !== term));
+        } else {
+            this.props.onToggle(this.props.selected.concat(term));
+        }
+    };
+
     render() {
         const { facet, title, emptyKeyword, emptyLabel, selected, onToggle } = this.props;
 
@@ -39,7 +52,7 @@ export class FacetPanel extends React.PureComponent<FacetPanelProps, void> {
 
                             return (
                                 <PanelBlock key={type} style={style}>
-                                    <li onClick={onToggle.bind(null, x.term)}>
+                                    <li onClick={this.handleToggle.bind(this, x.term)}>
                                         <MenuLink count={x.count} isToggled={isToggled}>{type}</MenuLink>
                                     </li>
                                 </PanelBlock>

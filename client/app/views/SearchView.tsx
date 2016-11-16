@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { Grid, Section, Row, Col } from '../components/Grid';
 import { SearchSidePanel } from '../components/SearchSidePanel';
 import { SearchResultPanel } from '../components/SearchResultPanel';
+import { Scrollbars } from '../components/Scrollbars';
 import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
@@ -36,16 +37,28 @@ class SearchView extends React.Component<Props, void> {
     render() {
         const { loading, filterParams, result, facets, query } = this.props;
 
+        const sidePanelStyle = {
+            position: 'fixed',
+            width: 300,
+            hight: 700
+        };
+        const resultPanelStyle = {
+            paddingLeft: 320,
+            width: '100%'
+        };
+
         return (
             <Section>
                 <Row>
-                    <Col size='is3'>
-                        <SearchSidePanel facets={facets}
-                            filterParams={filterParams}
-                            query={query}
-                            onToggle={this.handleFacetToggle} />
+                    <Col size='is3' style={sidePanelStyle}>
+                        <Scrollbars style={{height: 600}}>
+                            <SearchSidePanel facets={facets}
+                                filterParams={filterParams}
+                                query={query}
+                                onToggle={this.handleFacetToggle} />
+                        </Scrollbars>
                     </Col>
-                    <Col size='is9'>
+                    <Col size='is9' style={resultPanelStyle}>
                         <SearchResultPanel result={result} onPageChange={this.handlePageChange} />
                     </Col>
                 </Row>

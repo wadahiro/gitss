@@ -3,7 +3,8 @@ import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 
 import { Tag } from './Tag';
-import { FacetPanel } from '../components/FacetPanel';
+import { FacetPanel } from './FacetPanel';
+import { FilterPanel } from './FilterPanel';
 import { RootState, SearchResult, SearchFacets, FilterParams, FilterParamKey } from '../reducers';
 import * as Actions from '../actions';
 
@@ -17,28 +18,28 @@ interface SearchSidePanelProps {
 
 export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, void> {
 
-    handleExtToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('x', this.props.filterParams, term));
+    handleExtToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('x', this.props.filterParams, terms));
     };
 
-    handleOrganizationToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('o', this.props.filterParams, term));
+    handleOrganizationToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('o', this.props.filterParams, terms));
     };
 
-    handleProjectToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('p', this.props.filterParams, term));
+    handleProjectToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('p', this.props.filterParams, terms));
     };
 
-    handleRepositoryToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('r', this.props.filterParams, term));
+    handleRepositoryToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('r', this.props.filterParams, terms));
     };
 
-    handleBranchesToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('b', this.props.filterParams, term));
+    handleBranchesToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('b', this.props.filterParams, terms));
     };
 
-    handleTagsToggle = (term: string) => {
-        this.props.onToggle(mergeTerm('t', this.props.filterParams, term));
+    handleTagsToggle = (terms: string[]) => {
+        this.props.onToggle(mergeFilterParams('t', this.props.filterParams, terms));
     };
 
     render() {
@@ -46,31 +47,33 @@ export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, v
             filterParams,
         } = this.props;
 
+        let Panel = FilterPanel; // FacetPanel
+
         return (
             <div>
-                <FacetPanel title='File extensions'
+                <Panel title='File extensions'
                     facet={facets.facets['ext']}
                     emptyKeyword='/noext/'
                     emptyLabel='(No extension)'
                     selected={filterParams.x}
                     onToggle={this.handleExtToggle} />
-                <FacetPanel title='Organization'
+                <Panel title='Organization'
                     facet={facets.facets['organization']}
                     selected={filterParams.o}
                     onToggle={this.handleOrganizationToggle} />
-                <FacetPanel title='Project'
+                <Panel title='Project'
                     facet={facets.facets['project']}
                     selected={filterParams.p}
                     onToggle={this.handleProjectToggle} />
-                <FacetPanel title='Repository'
+                <Panel title='Repository'
                     facet={facets.facets['repository']}
                     selected={filterParams.r}
                     onToggle={this.handleRepositoryToggle} />
-                <FacetPanel title='Branches'
+                <Panel title='Branches'
                     facet={facets.facets['branches']}
                     selected={filterParams.b}
                     onToggle={this.handleBranchesToggle} />
-                <FacetPanel title='Tags'
+                <Panel title='Tags'
                     facet={facets.facets['tags']}
                     selected={filterParams.t}
                     onToggle={this.handleTagsToggle} />
@@ -78,6 +81,13 @@ export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, v
             </div>
         );
     }
+}
+
+function mergeFilterParams(key: FilterParamKey, prev: FilterParams, terms: string[]): FilterParams {
+    return {
+        ...prev,
+        [key]: terms
+    };
 }
 
 function mergeTerm(key: FilterParamKey, params: FilterParams, term: string) {
