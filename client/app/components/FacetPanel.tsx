@@ -14,38 +14,42 @@ interface FacetPanelProps {
     emptyLabel?: string;
 }
 
-export function FacetPanel(props: FacetPanelProps) {
-    if (!props.facet || !props.facet.terms || props.facet.terms.length === 0) {
-        return null;
+export class FacetPanel extends React.PureComponent<FacetPanelProps, void> {
+    render() {
+        const { facet, title, emptyKeyword, emptyLabel, selected, onToggle } = this.props;
+
+        if (!facet || !facet.terms || facet.terms.length === 0) {
+            return null;
+        }
+
+        return (
+            <Panel>
+                <PanelHeading>{title}</PanelHeading>
+                <Menu>
+                    <MenuList>
+                        {facet.terms.map(x => {
+                            let type = x.term;
+                            if (emptyKeyword && emptyLabel && type === emptyKeyword) {
+                                type = emptyLabel;
+                            }
+                            const style = {
+                                padding: 0
+                            }
+                            const isToggled = contains(selected, x.term);
+
+                            return (
+                                <PanelBlock key={type} style={style}>
+                                    <li onClick={onToggle.bind(null, x.term)}>
+                                        <MenuLink count={x.count} isToggled={isToggled}>{type}</MenuLink>
+                                    </li>
+                                </PanelBlock>
+                            )
+                        })}
+                    </MenuList>
+                </Menu>
+            </Panel>
+        );
     }
-
-    return (
-        <Panel>
-            <PanelHeading>{props.title}</PanelHeading>
-            <Menu>
-                <MenuList>
-                    {props.facet.terms.map(x => {
-                        let type = x.term;
-                        if (props.emptyKeyword && props.emptyLabel && type === props.emptyKeyword) {
-                            type = props.emptyLabel;
-                        }
-                        const style = {
-                            padding: 0
-                        }
-                        const isToggled = contains(props.selected, x.term);
-
-                        return (
-                            <PanelBlock key={type} style={style}>
-                                <li onClick={props.onToggle.bind(null, x.term)}>
-                                    <MenuLink count={x.count} isToggled={isToggled}>{type}</MenuLink>
-                                </li>
-                            </PanelBlock>
-                        )
-                    })}
-                </MenuList>
-            </Menu>
-        </Panel>
-    );
 }
 
 function contains(array = [], item) {

@@ -12,6 +12,8 @@ interface InputTextProps extends React.DOMAttributes {
     style?: any;
 }
 
-export function InputText(props: InputTextProps) {
-    return <BInput {...props} type='text'>{props.children}</BInput>
+export class InputText extends React.PureComponent<InputTextProps, void> {
+    render() {
+        return <BInput {...this.props} type='text'>{this.props.children}</BInput>;
+    }
 }

@@ -8,21 +8,27 @@ interface PaginationProps extends React.HTMLAttributes {
     isActive?: boolean;
 }
 
-const defaultStyle = {
+const defaultActiveStyle = {
     color: '#fff',
     backgroundColor: '#3572b0'
 };
 
-export function Pagination(props: PaginationProps) {
-    return <BPagination {...props} >{props.children}</BPagination>;
-}
-
-export function PageButton(props: PaginationProps) {
-    let style = props.style;
-    if (props.isActive) {
-        style = Object.assign({}, defaultStyle, props.style);
+export class Pagination extends React.PureComponent<PaginationProps, void> {
+    render() {
+        return <BPagination {...this.props} >{this.props.children}</BPagination>;
     }
-
-    return <BPageButton {...props} style={style}>{props.children}</BPageButton>;
 }
 
+export class PageButton extends React.PureComponent<PaginationProps, void> {
+    render() {
+        let style = this.props.style;
+        if (this.props.isActive) {
+            style = {
+                ...defaultActiveStyle,
+                ...this.props.style
+            };
+        }
+
+        return <BPageButton {...this.props} style={style}>{this.props.children}</BPageButton>;
+    }
+}

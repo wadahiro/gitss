@@ -37,7 +37,9 @@ export interface FilterParams {
     t?: string[]; // tags
 }
 
-const FILTER_PARAMS_MAP = {
+export type FilterParamKey = 'x' | 'o' | 'p' | 'r' | 'b' | 't';
+
+const FILTER_PARAMS_MAP: { [index: string]: FacetKey } = {
     x: 'ext',
     o: 'organization',
     p: 'project',
@@ -86,6 +88,8 @@ export interface FileMetadata {
     path: string;
     ext: string;
 }
+
+export type FacetKey = 'ext' | 'organization' | 'project' | 'repository' | 'branches' | 'tags';
 
 export interface Facets {
     [index: string]: Facet;
@@ -192,6 +196,8 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
                 // search with new keyword
                 filterParams = {};
             }
+
+            window.scrollTo(0, 0);
 
             return {
                 ...state,

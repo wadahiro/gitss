@@ -4,13 +4,14 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
 import { Grid, Section, Row, Col } from '../components/Grid';
+import { SearchSidePanel } from '../components/SearchSidePanel';
 import { Pagination, PageButton } from '../components/Pagination';
 import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
 import { FileContent } from '../components/FileContent';
-import { RootState, SearchResult, SearchFacets, FilterParams } from '../reducers';
+import { RootState, SearchResult, SearchFacets, FilterParams, FacetKey } from '../reducers';
 import * as Actions from '../actions';
 
 const MDSpinner = require('react-md-spinner').default;
@@ -25,28 +26,8 @@ interface Props {
 }
 
 class SearchView extends React.Component<Props, void> {
-    handleExtToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('x', this.props.filterParams, term));
-    };
-
-    handleOrganizationToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('o', this.props.filterParams, term));
-    };
-
-    handleProjectToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('p', this.props.filterParams, term));
-    };
-
-    handleRepositoryToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
-    };
-
-    handleBranchesToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
-    };
-
-    handleTagsToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('t', this.props.filterParams, term));
+    handleFacetToggle = (filterParams: FilterParams) => {
+        Actions.searchFilter(this.props.dispatch, this.props.query, filterParams);
     };
 
     showPage = (page: number) => {
@@ -71,7 +52,7 @@ class SearchView extends React.Component<Props, void> {
     };
 
     render() {
-        const { loading, filterParams, result, facets } = this.props;
+        const { loading, filterParams, result, facets, query } = this.props;
 
         const pageSize = Math.ceil(result.size / result.limit) || 0;
         const pageButtons = [];
@@ -124,33 +105,10 @@ class SearchView extends React.Component<Props, void> {
             <Section>
                 <Row>
                     <Col size='is3'>
-                        <FacetPanel title='File extensions'
-                            facet={facets.facets['ext']}
-                            emptyKeyword='/noext/'
-                            emptyLabel='(No extension)'
-                            selected={filterParams.x}
-                            onToggle={this.handleExtToggle} />
-                        <FacetPanel title='Organization'
-                            facet={facets.facets['organization']}
-                            selected={filterParams.o}
-                            onToggle={this.handleOrganizationToggle} />
-                        <FacetPanel title='Project'
-                            facet={facets.facets['project']}
-                            selected={filterParams.p}
-                            onToggle={this.handleProjectToggle} />
-                        <FacetPanel title='Repository'
-                            facet={facets.facets['repository']}
-                            selected={filterParams.r}
-                            onToggle={this.handleRepositoryToggle} />
-                        <FacetPanel title='Branches'
-                            facet={facets.facets['branches']}
-                            selected={filterParams.b}
-                            onToggle={this.handleBranchesToggle} />
-                        <FacetPanel title='Tags'
-                            facet={facets.facets['tags']}
-                            selected={filterParams.t}
-                            onToggle={this.handleTagsToggle} />
-
+                        <SearchSidePanel facets={facets}
+                            filterParams={filterParams}
+                            query={query}
+                            onToggle={this.handleFacetToggle} />
                     </Col>
                     <Col size='is9'>
                         <Grid>
@@ -182,19 +140,6 @@ class SearchView extends React.Component<Props, void> {
             </Section>
         );
     }
-}
-
-function mergeTerm(key: string, params: FilterParams, term: string) {
-    const target = params[key] || [];
-    let terms;
-    if (target.find(x => x === term)) {
-        terms = target.filter(x => x !== term);
-    } else {
-        terms = target.concat(term);
-    }
-    return Object.assign({}, params, {
-        [key]: terms
-    });
 }
 
 function mapStateToProps(state: RootState, props: Props): Props {

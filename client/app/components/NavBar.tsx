@@ -20,59 +20,62 @@ interface NavProps {
     result: SearchResult;
 }
 
-export function NavBar(props: NavProps) {
-    const title = {
-        background: "url(./imgs/title.png) 0px 0px no-repeat"
-    }
-    const rootTyle = {
-        position: 'fixed',
-        width: '100%',
-        zIndex: 1100,
-        top: 0,
-        marginBottom: 100
-    };
-    const navStyle = {
-        backgroundColor: '#205081',
-        width: '100%',
-        zIndex: 1100,
-        paddingLeft: 24,
-        paddingRight: 24
-    };
 
-    // <img src="./imgs/title.png" alt="GitSS" width='400'/>
-    return (
-        <div style={rootTyle}>
-            <BNav style={navStyle}>
-                <BNavGroup align='left'>
-                    <BNavItem>
-                        <BTitle style={{ color: 'white' }}>GitSS</BTitle>
-                    </BNavItem>
-                </BNavGroup>
-                <BNavGroup align='center'>
-                    <BNavItem>
-                        <InputText
-                            placeholder='Search'
-                            icon='fa fa-search'
-                            size='isLarge'
-                            hasIcon
-                            onKeyDown={props.onKeyDown}
-                            />
-                    </BNavItem>
-                </BNavGroup>
-                <BNavGroup align='right'>
-                </BNavGroup>
-            </BNav>
-            <BHero style={{ backgroundColor: '#f5f7fa', borderBottom: '1px solid #ccc' }}>
-                <BHeroHead>
-                    <Container hasTextCentered>
-                        {props.loading ?
-                            <MDSpinner />
-                            :
-                            <p style={{ margin: 5 }}><b>We’ve found {props.result.size}&nbsp;code results {props.result.time > 0 ? `(${Math.round(props.result.time * 1000) / 1000} seconds)` : ''}</b></p>
-                        }
-                    </Container>
-                </BHeroHead>
-            </BHero>
-        </div>
-    );
+export class NavBar extends React.PureComponent<NavProps, void> {
+    render() {
+        const title = {
+            background: "url(./imgs/title.png) 0px 0px no-repeat"
+        }
+        const rootTyle = {
+            position: 'fixed',
+            width: '100%',
+            zIndex: 1100,
+            top: 0,
+            marginBottom: 100
+        };
+        const navStyle = {
+            backgroundColor: '#205081',
+            width: '100%',
+            zIndex: 1100,
+            paddingLeft: 24,
+            paddingRight: 24
+        };
+
+        // <img src="./imgs/title.png" alt="GitSS" width='400'/>
+        return (
+            <div style={rootTyle}>
+                <BNav style={navStyle}>
+                    <BNavGroup align='left'>
+                        <BNavItem>
+                            <BTitle style={{ color: 'white' }}>GitSS</BTitle>
+                        </BNavItem>
+                    </BNavGroup>
+                    <BNavGroup align='center'>
+                        <BNavItem>
+                            <InputText
+                                placeholder='Search'
+                                icon='fa fa-search'
+                                size='isLarge'
+                                hasIcon
+                                onKeyDown={this.props.onKeyDown}
+                                />
+                        </BNavItem>
+                    </BNavGroup>
+                    <BNavGroup align='right'>
+                    </BNavGroup>
+                </BNav>
+                <BHero style={{ backgroundColor: '#f5f7fa', borderBottom: '1px solid #ccc' }}>
+                    <BHeroHead>
+                        <Container hasTextCentered>
+                            {this.props.loading ?
+                                <MDSpinner />
+                                :
+                                <p style={{ margin: 5 }}><b>We’ve found {this.props.result.size}&nbsp;code results {this.props.result.time > 0 ? `(${Math.round(this.props.result.time * 1000) / 1000} seconds)` : ''}</b></p>
+                            }
+                        </Container>
+                    </BHeroHead>
+                </BHero>
+            </div>
+        );
+    }
 }

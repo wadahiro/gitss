@@ -21,18 +21,22 @@ const defaultStyle = {
     margin: 2
 };
 
-export function RefTag(props: RefTagProps) {
-    const style = Object.assign({}, defaultStyle, props.style);
-    return <Tag {...props} style={style}>
-        <Icon {...props} style={{ marginRight: 3 }} />
-        {props.children}
-    </Tag>;
+export class RefTag extends React.PureComponent<RefTagProps, void> {
+    render() {
+        const style = Object.assign({}, defaultStyle, this.props.style);
+        return <Tag {...this.props} style={style}>
+            <Icon {...this.props} style={{ marginRight: 3 }} />
+            {this.props.children}
+        </Tag>;
+    }
 }
 
-function Icon(props) {
-    if (props.type === 'branch') {
-        return <i className='fa fa-code-fork' style={props.style} />;
-    } else {
-        return <i className='fa fa-tag' style={props.style} />;
+export class Icon extends React.PureComponent<RefTagProps, void> {
+    render() {
+        if (this.props.type === 'branch') {
+            return <i className='fa fa-code-fork' style={this.props.style} />;
+        } else {
+            return <i className='fa fa-tag' style={this.props.style} />;
+        }
     }
 }

@@ -12,11 +12,7 @@ interface Props {
     preview: Preview[];
 }
 
-interface State {
-    highlight: any;
-}
-
-export class FileContent extends React.Component<Props, State>{
+export class FileContent extends React.PureComponent<Props, void>{
 
     highlight(offset: number, highlightNums: number[], content: string, ext: string) {
         if (typeof window !== 'undefined' && window['EnlighterJS']) {
