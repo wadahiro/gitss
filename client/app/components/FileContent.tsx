@@ -1,6 +1,7 @@
 import * as React from 'react';
 
-import { Tag } from './Tag';
+import { Grid, Section, Row, Col } from '../components/Grid';
+import { RefTag } from './RefTag';
 import { FileMetadata, Preview } from '../reducers';
 
 const CRLF = /\r\n|\r|\n/g;
@@ -85,36 +86,57 @@ export class FileContent extends React.Component<Props, State>{
             wrapper: {
                 float: 'right'
             },
+            title: {
+                margin: 0
+            },
+            row: {
+                margin: 0,
+                marginBottom: 10
+            },
+            column: {
+                padding: 0
+            }
         };
         return (
-            <div>
-                <div style={styles.wrapper}>
-                    {metadata.branches.map(x => {
-                        return (
-                            <Tag key={x}>{x}</Tag>
-                        );
-                    })}
-                </div>
-                <div style={styles.wrapper}>
-                    {metadata.tags.map(x => {
-                        return (
-                            <Tag key={x}>{x}</Tag>
-                        );
-                    })}
-                </div>
-                <h4>
-                    {`${metadata.organization}: ${metadata.project}`}
-                    <span style={{ margin: '0 0.25em' }}>/</span>
-                    {`${metadata.repository} – ${metadata.path}`}
-                </h4>
-                {preview.map((pre, i) => {
-                    return (
-                        <div key={pre.offset}>
-                            {this.highlight(pre.offset, pre.hits, pre.preview, metadata.ext)}
-                        </div>
-                    );
-                })}
-            </div>
+            <Grid>
+                <Row style={styles.row}>
+                    <Col size='is12' style={styles.column}>
+                        <h4 style={styles.title}>
+                            {`${metadata.organization}: ${metadata.project}`}
+                            <span style={{ margin: '0 0.25em' }}>/</span>
+                            {`${metadata.repository}`}
+                        </h4>
+                    </Col>
+                </Row>
+                <Row style={styles.row}>
+                    <Col size='is12' style={styles.column}>
+                        <h5 style={styles.title}>{`${metadata.path}`}</h5>
+                    </Col>
+                </Row>
+                <Row>
+                    <Col size='is10'>
+                        {preview.map((pre, i) => {
+                            return (
+                                <div key={pre.offset}>
+                                    {this.highlight(pre.offset, pre.hits, pre.preview, metadata.ext)}
+                                </div>
+                            );
+                        })}
+                    </Col>
+                    <Col size='is2'>
+                        {metadata.branches.map(x => {
+                            return (
+                                <RefTag key={x} type='branch'>{x}</RefTag>
+                            );
+                        })}
+                        {metadata.tags.map(x => {
+                            return (
+                                <RefTag key={x} type='tag'>{x}</RefTag>
+                            );
+                        })}
+                    </Col>
+                </Row>
+            </Grid>
         );
     }
 }
