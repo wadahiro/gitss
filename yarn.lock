@@ -3679,6 +3679,10 @@ react-json-tree@^0.6.6:
     react-mixin "^1.7.0"
     react-pure-render "^1.0.2"
 
+react-lazyload:
+  version "2.1.6"
+  resolved "https://registry.yarnpkg.com/react-lazyload/-/react-lazyload-2.1.6.tgz#31c7bd23ae33b345f7c1b80f70663784db9421e2"
+
 react-md-spinner:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/react-md-spinner/-/react-md-spinner-0.1.0.tgz#5df939e396cd9576e3183f9435bcfd2736b9c81c"

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
+import LazyLoad from 'react-lazyload';
 
 import { Grid, Section, Row, Col } from '../components/Grid';
 import { FileContent } from '../components/FileContent';
@@ -19,12 +20,21 @@ export class SearchResultPanel extends React.PureComponent<SearchResultPanelProp
 
         return (
             <Grid>
+                {result && result.size > 10 &&
+                    <Row>
+                        <Col size='is12'>
+                            <Pager pageSize={pageSize} current={result.current} onChange={this.props.onPageChange} />
+                        </Col>
+                    </Row>
+                }
                 {result.hits.map(x => {
                     return (
                         <Row key={x.blob}>
-                            <Col size='is12'>
-                                <FileContent metadata={x} keyword={x.keyword} preview={x.preview} />
-                            </Col>
+                            <LazyLoad height={200}>
+                                <Col size='is12'>
+                                    <FileContent metadata={x} keyword={x.keyword} preview={x.preview} />
+                                </Col>
+                            </LazyLoad>
                         </Row>
                     );
                 })}
