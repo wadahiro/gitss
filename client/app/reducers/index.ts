@@ -1,12 +1,15 @@
 import { combineReducers } from 'redux';
 import { Maybe, Either } from 'tsmonad';
-
+import * as lm from 'lodash/mergeWith';
+import * as lu from 'lodash/unionWith';
 
 import * as Actions from '../actions';
 
 const ReduxUndo = require('redux-undo');
 const undoable = ReduxUndo.default;
 const includeAction = ReduxUndo.includeAction;
+const mergeWith = lm['default'];
+const unionWith = lu['default'];
 
 
 export interface RootState {
@@ -26,8 +29,6 @@ export interface AppState {
 }
 
 export interface FilterParams {
-    q?: string;
-    i?: number;
     a?: AdvancedSearchType;
     x?: string[]; // ext
     o?: string[]; // organization
@@ -39,7 +40,7 @@ export interface FilterParams {
 
 export type AdvancedSearchType = 'regex';
 
-export type FilterParamKey = 'q' | 'x' | 'o' | 'p' | 'r' | 'b' | 't';
+export type FilterParamKey = 'x' | 'o' | 'p' | 'r' | 'b' | 't';
 
 const FILTER_PARAMS_MAP: { [index: string]: FacetKey } = {
     x: 'ext',
@@ -157,35 +158,35 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
             return {
                 ...state,
                 loading: true,
-                searchParams: action.payload.searchParams || {}
-            }
+                filterParams: action.payload.filterParams || {}
+            };
+        case 'RESET_FACETS':
+            return {
+                facets: {
+                    facets: {},
+                    fullRefsFacet: []
+                }
+            };
+
         case 'SEARCH':
-        case 'SEARCH_FILTER':
             const searchResult: SearchResult = action.payload.result;
 
+            const merged = mergeWith(state.facets.facets, searchResult.facets, (objValue: Facet, srcValue: Facet) => {
+                const mergedFacet = mergeWith(objValue, srcValue, (objValue: any, srcValue: any) => {
+                    if (Array.isArray(objValue)) {
+                        return unionWith(objValue, srcValue, (a: Term, b: Term) => {
+                            return a.term === b.term;
+                        });
+                    }
+                    return srcValue;
+                })
+                return mergedFacet;
+            });
+
             let facets = {
-                facets: searchResult.facets,
-                initialFacets: {},
+                facets: merged,
                 fullRefsFacet: searchResult.fullRefsFacet
             };
-            // let filterParams = searchResult.filterParams;
-
-            // if (action.type === 'SEARCH_FILTER') {
-            //     // same query, so don't reduce facet items. we need to update the values.
-
-            //     facets.facets = Object.keys(FILTER_PARAMS_MAP).reduce((s, k) => {
-            //         const noSeleted = filterParams[k] === undefined;
-            //         const facetKey = FILTER_PARAMS_MAP[k];
-            //         s[facetKey] = {
-            //             ...state.facets.facets[facetKey],
-            //             terms: mergeTerms(state.facets.facets, searchResult.facets, facetKey, noSeleted)
-            //         };
-            //         return s;
-            //     }, {} as Facets);
-            // } else {
-            //     // search with new keyword
-            //     filterParams = {};
-            // }
 
             window.scrollTo(0, 0);
 
@@ -199,24 +200,6 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
 
     return state;
 };
-
-function mergeTerms(prev: Facets, next: Facets, key: string, noSeleted: boolean): Term[] {
-    const prevTerms = prev[key] ? prev[key].terms : [];
-    const nextTerms = next[key] ? next[key].terms : [];
-    return prevTerms.map(x => {
-        const nextTerm = nextTerms.find(y => x.term === y.term);
-        if (nextTerm) {
-            if (noSeleted) {
-                x.count = nextTerm.count;
-            }
-        } else {
-            if (noSeleted) {
-                x.count = 0;
-            }
-        }
-        return x;
-    });
-}
 
 export default combineReducers({
     app: undoable(appStateReducer, {

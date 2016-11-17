@@ -19,6 +19,7 @@ const MDSpinner = require('react-md-spinner').default;
 
 interface Props {
     dispatch?: Dispatch<Action>;
+    query:string;
     loading: boolean;
     filterParams: FilterParams;
     result: SearchResult;
@@ -52,7 +53,7 @@ class SearchView extends React.Component<Props, void> {
     };
 
     render() {
-        const { loading, filterParams, result, facets } = this.props;
+        const { loading, query, filterParams, result, facets } = this.props;
 
         const sidePanelStyle = {
             position: 'fixed',
@@ -66,7 +67,7 @@ class SearchView extends React.Component<Props, void> {
 
         return (
             <div>
-                <NavBar onKeyDown={this.handleKeyDown} loading={this.props.loading} result={this.props.result} query={filterParams.q} />
+                <NavBar onKeyDown={this.handleKeyDown} loading={this.props.loading} result={this.props.result} query={query} />
                 <Section style={{ marginTop: 80 }}>
                     <Row>
                         <Col size='is3' style={sidePanelStyle}>
@@ -89,6 +90,7 @@ class SearchView extends React.Component<Props, void> {
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
+        query: props.location.query['q'] !== undefined ? props.location.query['q'] : '',
         filterParams: props.location.query,
         result: state.app.present.result,
         facets: state.app.present.facets

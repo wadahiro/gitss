@@ -8,7 +8,7 @@ import WebApi from '../api/WebApi';
 
 export type Actions =
     Search |
-    SearchFilter |
+    ResetFacets |
     SearchStart
     ;
 
@@ -19,22 +19,23 @@ export interface Search extends Action {
     }
 }
 
-export interface SearchFilter extends Action {
-    type: 'SEARCH_FILTER';
-    payload: {
-        result: any;
-    }
+export interface ResetFacets extends Action {
+    type: 'RESET_FACETS';
 }
 
 export interface SearchStart extends Action {
     type: 'SEARCH_START';
     payload: {
-        searchParams: FilterParams
+        filterParams: FilterParams
     };
 }
 
 export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void {
-    // reset filters
+    // reset filters & current facets
+    dispatch({
+        type: 'RESET_FACETS'
+    });
+
     const params = {
         q: query
     };
@@ -45,16 +46,16 @@ export function triggerFilter(dispatch: Dispatch<Search>, filterParams?: FilterP
     _triggerSearch(filterParams, page);
 }
 
-export function search(dispatch: Dispatch<Search>, searchParams: FilterParams): void {
+export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): void {
 
     dispatch({
         type: 'SEARCH_START',
         payload: {
-            searchParams
+            filterParams
         }
     });
 
-    WebApi.query('search', searchParams)
+    WebApi.query('search', filterParams)
         .then(res => {
             // console.log(res);
             dispatch({
@@ -69,9 +70,9 @@ export function search(dispatch: Dispatch<Search>, searchParams: FilterParams): 
         });
 }
 
-function _triggerSearch(searchParams?: FilterParams, page: number = 0): void {
+function _triggerSearch(filterParams?: FilterParams, page: number = 0): void {
     const queryParams = {
-        ...searchParams,
+        ...filterParams,
         i: page
     };
 
