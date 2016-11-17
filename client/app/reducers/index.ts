@@ -21,14 +21,14 @@ export interface AppStateHistory {
 
 export interface AppState {
     loading: boolean;
-    query: string;
-    filterParams: FilterParams;
-    lastQuery: string;
     facets: SearchFacets;
     result: SearchResult;
 }
 
 export interface FilterParams {
+    q?: string;
+    i?: number;
+    a?: AdvancedSearchType;
     x?: string[]; // ext
     o?: string[]; // organization
     p?: string[]; // project
@@ -37,7 +37,9 @@ export interface FilterParams {
     t?: string[]; // tags
 }
 
-export type FilterParamKey = 'x' | 'o' | 'p' | 'r' | 'b' | 't';
+export type AdvancedSearchType = 'regex';
+
+export type FilterParamKey = 'q' | 'x' | 'o' | 'p' | 'r' | 'b' | 't';
 
 const FILTER_PARAMS_MAP: { [index: string]: FacetKey } = {
     x: 'ext',
@@ -54,8 +56,6 @@ export interface SearchFacets {
 }
 
 export interface SearchResult {
-    query: string;
-    filterParams: FilterParams;
     time: number;
     size: number;
     limit: number;
@@ -135,16 +135,11 @@ export interface RefFacets {
 function init(): AppState {
     return {
         loading: false,
-        query: '',
-        filterParams: {},
-        lastQuery: '',
         facets: {
             facets: {},
             fullRefsFacet: []
         },
         result: {
-            query: '',
-            filterParams: {},
             time: -1,
             size: 0,
             limit: 0,
@@ -158,16 +153,11 @@ function init(): AppState {
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
-        case 'SET_QUERY':
-            return {
-                ...state,
-                query: action.payload.query
-            }
         case 'SEARCH_START':
             return {
                 ...state,
                 loading: true,
-                filterParams: action.payload.filterParams || {}
+                searchParams: action.payload.searchParams || {}
             }
         case 'SEARCH':
         case 'SEARCH_FILTER':
@@ -178,31 +168,29 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
                 initialFacets: {},
                 fullRefsFacet: searchResult.fullRefsFacet
             };
-            let filterParams = searchResult.filterParams;
+            // let filterParams = searchResult.filterParams;
 
-            if (action.type === 'SEARCH_FILTER') {
-                // same query, so don't reduce facet items. we need to update the values.
+            // if (action.type === 'SEARCH_FILTER') {
+            //     // same query, so don't reduce facet items. we need to update the values.
 
-                facets.facets = Object.keys(FILTER_PARAMS_MAP).reduce((s, k) => {
-                    const noSeleted = filterParams[k] === undefined;
-                    const facetKey = FILTER_PARAMS_MAP[k];
-                    s[facetKey] = {
-                        ...state.facets.facets[facetKey],
-                        terms: mergeTerms(state.facets.facets, searchResult.facets, facetKey, noSeleted)
-                    };
-                    return s;
-                }, {} as Facets);
-            } else {
-                // search with new keyword
-                filterParams = {};
-            }
+            //     facets.facets = Object.keys(FILTER_PARAMS_MAP).reduce((s, k) => {
+            //         const noSeleted = filterParams[k] === undefined;
+            //         const facetKey = FILTER_PARAMS_MAP[k];
+            //         s[facetKey] = {
+            //             ...state.facets.facets[facetKey],
+            //             terms: mergeTerms(state.facets.facets, searchResult.facets, facetKey, noSeleted)
+            //         };
+            //         return s;
+            //     }, {} as Facets);
+            // } else {
+            //     // search with new keyword
+            //     filterParams = {};
+            // }
 
             window.scrollTo(0, 0);
 
             return {
                 ...state,
-                lastQuery: searchResult.query,
-                filterParams: fillFilterParams(filterParams),
                 result: searchResult,
                 facets,
                 loading: false
@@ -228,10 +216,6 @@ function mergeTerms(prev: Facets, next: Facets, key: string, noSeleted: boolean)
         }
         return x;
     });
-}
-
-function fillFilterParams(filterParams: FilterParams): FilterParams {
-    return filterParams;
 }
 
 export default combineReducers({

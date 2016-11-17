@@ -3,6 +3,7 @@ import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
+import { NavBar } from '../components/NavBar';
 import { Grid, Section, Row, Col } from '../components/Grid';
 import { SearchSidePanel } from '../components/SearchSidePanel';
 import { SearchResultPanel } from '../components/SearchResultPanel';
@@ -19,23 +20,39 @@ const MDSpinner = require('react-md-spinner').default;
 interface Props {
     dispatch?: Dispatch<Action>;
     loading: boolean;
-    query: string;
     filterParams: FilterParams;
     result: SearchResult;
     facets: SearchFacets;
+    location?: any;
+    history?: any;
 }
 
 class SearchView extends React.Component<Props, void> {
+    componentWillMount() {
+        let count = 0;
+        this.props.history.listen((arg1, {location}) => {
+            if (location.query.q !== undefined && location.query.q !== '') {
+                Actions.search(this.props.dispatch, location.query);
+            }
+        });
+    }
+
+    handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.keyCode === 13) {
+            Actions.triggerSearch(this.props.dispatch, e.target['value']);
+        }
+    };
+
     handleFacetToggle = (filterParams: FilterParams) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, filterParams);
+        Actions.triggerFilter(this.props.dispatch, filterParams);
     };
 
     handlePageChange = (page: number) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, page);
+        Actions.triggerFilter(this.props.dispatch, this.props.filterParams, page);
     };
 
     render() {
-        const { loading, filterParams, result, facets, query } = this.props;
+        const { loading, filterParams, result, facets } = this.props;
 
         const sidePanelStyle = {
             position: 'fixed',
@@ -48,21 +65,23 @@ class SearchView extends React.Component<Props, void> {
         };
 
         return (
-            <Section>
-                <Row>
-                    <Col size='is3' style={sidePanelStyle}>
-                        <Scrollbars style={{height: 600}}>
-                            <SearchSidePanel facets={facets}
-                                filterParams={filterParams}
-                                query={query}
-                                onToggle={this.handleFacetToggle} />
-                        </Scrollbars>
-                    </Col>
-                    <Col size='is9' style={resultPanelStyle}>
-                        <SearchResultPanel result={result} onPageChange={this.handlePageChange} />
-                    </Col>
-                </Row>
-            </Section>
+            <div>
+                <NavBar onKeyDown={this.handleKeyDown} loading={this.props.loading} result={this.props.result} query={filterParams.q} />
+                <Section style={{ marginTop: 80 }}>
+                    <Row>
+                        <Col size='is3' style={sidePanelStyle}>
+                            <Scrollbars style={{ height: 600 }}>
+                                <SearchSidePanel facets={facets}
+                                    searchParams={filterParams}
+                                    onToggle={this.handleFacetToggle} />
+                            </Scrollbars>
+                        </Col>
+                        <Col size='is9' style={resultPanelStyle}>
+                            <SearchResultPanel result={result} onPageChange={this.handlePageChange} />
+                        </Col>
+                    </Row>
+                </Section>
+            </div>
         );
     }
 }
@@ -70,8 +89,7 @@ class SearchView extends React.Component<Props, void> {
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
-        query: state.app.present.query,
-        filterParams: state.app.present.filterParams,
+        filterParams: props.location.query,
         result: state.app.present.result,
         facets: state.app.present.facets
     };

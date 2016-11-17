@@ -18,6 +18,7 @@ interface NavProps {
     onKeyDown: React.KeyboardEventHandler;
     loading: boolean;
     result: SearchResult;
+    query?: string;
 }
 
 
@@ -57,6 +58,7 @@ export class NavBar extends React.PureComponent<NavProps, void> {
                                 icon='fa fa-search'
                                 size='isLarge'
                                 hasIcon
+                                defaultValue={this.props.query}
                                 onKeyDown={this.props.onKeyDown}
                                 />
                         </BNavItem>

@@ -82,18 +82,12 @@ export default class WebApi {
         return this.del(fullId, _rev)
     }
 
-    static query<T>(resource: string, queryParams: Object = {}): Promise<QueryResult<T>> {
-        const query = Object.keys(queryParams).map(x => {
-            const v = queryParams[x];
-            if (Array.isArray(v)) {
-                return v.map(y => {
-                    return `${x}=${y}`;
-                }).join('&');
-            } else {
-                return `${x}=${v}`;
-            }
-        }).join('&');
-        return fetch(toUrl(`${resource}?${query}`))
+    static query<T>(resource: string, queryParams: Object | string = {}): Promise<QueryResult<T>> {
+        let q = queryParams;
+        if (typeof queryParams !== 'string') {
+            q = this.queryString(queryParams);
+        }
+        return fetch(toUrl(`${resource}?${q}`))
             .then(this.toJson);
     }
 
@@ -108,6 +102,20 @@ export default class WebApi {
 
     static toJson(response) {
         return response.json();
+    }
+
+    static queryString(queryParams: Object = {}): string {
+        const query = Object.keys(queryParams).map(x => {
+            const v = queryParams[x];
+            if (Array.isArray(v)) {
+                return v.map(y => {
+                    return `${x}=${y}`;
+                }).join('&');
+            } else {
+                return `${x}=${v}`;
+            }
+        }).join('&');
+        return query;
     }
 }
 

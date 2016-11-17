@@ -10,6 +10,8 @@ interface InputTextProps extends React.DOMAttributes {
     size?: Size;
     hasIcon?: boolean;
     style?: any;
+    value?: string;
+    defaultValue?: string;
 }
 
 export class InputText extends React.PureComponent<InputTextProps, void> {

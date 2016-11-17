@@ -12,40 +12,43 @@ import * as Actions from '../actions';
 interface SearchSidePanelProps {
     onToggle: (filterParams: FilterParams) => void;
     facets: SearchFacets;
-    filterParams: FilterParams;
-    query: string;
+    searchParams: FilterParams;
 }
 
 export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, void> {
 
     handleExtToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('x', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('x', this.props.searchParams, terms));
     };
 
     handleOrganizationToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('o', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('o', this.props.searchParams, terms));
     };
 
     handleProjectToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('p', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('p', this.props.searchParams, terms));
     };
 
     handleRepositoryToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('r', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('r', this.props.searchParams, terms));
     };
 
     handleBranchesToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('b', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('b', this.props.searchParams, terms));
     };
 
     handleTagsToggle = (terms: string[]) => {
-        this.props.onToggle(mergeFilterParams('t', this.props.filterParams, terms));
+        this.props.onToggle(mergeFilterParams('t', this.props.searchParams, terms));
     };
 
     render() {
         const { facets,
-            filterParams,
+            searchParams,
         } = this.props;
+
+        if (!facets || !facets.facets) {
+            return null;
+        }
 
         let Panel = FilterPanel; // FacetPanel
 
@@ -55,27 +58,27 @@ export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, v
                     facet={facets.facets['ext']}
                     emptyKeyword='/noext/'
                     emptyLabel='(No extension)'
-                    selected={filterParams.x}
+                    selected={searchParams.x}
                     onToggle={this.handleExtToggle} />
                 <Panel title='Organization'
                     facet={facets.facets['organization']}
-                    selected={filterParams.o}
+                    selected={searchParams.o}
                     onToggle={this.handleOrganizationToggle} />
                 <Panel title='Project'
                     facet={facets.facets['project']}
-                    selected={filterParams.p}
+                    selected={searchParams.p}
                     onToggle={this.handleProjectToggle} />
                 <Panel title='Repository'
                     facet={facets.facets['repository']}
-                    selected={filterParams.r}
+                    selected={searchParams.r}
                     onToggle={this.handleRepositoryToggle} />
                 <Panel title='Branches'
                     facet={facets.facets['branches']}
-                    selected={filterParams.b}
+                    selected={searchParams.b}
                     onToggle={this.handleBranchesToggle} />
                 <Panel title='Tags'
                     facet={facets.facets['tags']}
-                    selected={filterParams.t}
+                    selected={searchParams.t}
                     onToggle={this.handleTagsToggle} />
 
             </div>
@@ -92,14 +95,22 @@ function mergeFilterParams(key: FilterParamKey, prev: FilterParams, terms: strin
 
 function mergeTerm(key: FilterParamKey, params: FilterParams, term: string) {
     const target = params[key] || [];
-    let terms;
-    if (target.find(x => x === term)) {
-        terms = target.filter(x => x !== term);
+    if (Array.isArray(target)) {
+        let terms;
+        if (target.find(x => x === term)) {
+            terms = target.filter(x => x !== term);
+        } else {
+            terms = target.concat(term);
+        }
+        return {
+            ...params,
+            [key]: terms
+        };
     } else {
-        terms = target.concat(term);
+        return {
+            ...params,
+            [key]: term
+        };
     }
-    return Object.assign({}, params, {
-        [key]: terms
-    });
 }
 

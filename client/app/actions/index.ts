@@ -1,4 +1,5 @@
 import { Action, Dispatch } from 'redux';
+import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
@@ -6,27 +7,10 @@ import { FilterParams } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
-    SetQuery |
     Search |
     SearchFilter |
     SearchStart
     ;
-
-export interface SetQuery extends Action {
-    type: 'SET_QUERY';
-    payload: {
-        query: string;
-    }
-}
-
-export function setQuery(dispatch: Dispatch<SetQuery>, query: string) {
-    dispatch({
-        type: 'SET_QUERY',
-        payload: {
-            query
-        }
-    });
-}
 
 export interface Search extends Action {
     type: 'SEARCH';
@@ -45,36 +29,36 @@ export interface SearchFilter extends Action {
 export interface SearchStart extends Action {
     type: 'SEARCH_START';
     payload: {
-        filterParams: FilterParams
+        searchParams: FilterParams
     };
 }
 
-export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
-    _search('SEARCH', dispatch, query, filterParams, page);
+export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void {
+    // reset filters
+    const params = {
+        q: query
+    };
+    _triggerSearch(params, 0);
 }
 
-export function searchFilter(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
-    _search('SEARCH_FILTER', dispatch, query, filterParams, page);
+export function triggerFilter(dispatch: Dispatch<Search>, filterParams?: FilterParams, page: number = 0): void {
+    _triggerSearch(filterParams, page);
 }
 
-function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
+export function search(dispatch: Dispatch<Search>, searchParams: FilterParams): void {
+
     dispatch({
         type: 'SEARCH_START',
         payload: {
-            filterParams
+            searchParams
         }
     });
 
-    const queryParams = Object.assign({}, filterParams, {
-        q: query,
-        i: page
-    });
-
-    WebApi.query('search', queryParams)
+    WebApi.query('search', searchParams)
         .then(res => {
             // console.log(res);
             dispatch({
-                type: searchType,
+                type: 'SEARCH',
                 payload: {
                     result: res
                 }
@@ -83,6 +67,15 @@ function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Sear
         .catch(e => {
             console.warn(e);
         });
+}
+
+function _triggerSearch(searchParams?: FilterParams, page: number = 0): void {
+    const queryParams = {
+        ...searchParams,
+        i: page
+    };
+
+    browserHistory.push(`/?${WebApi.queryString(queryParams)}`);
 }
 
 export function undo() {

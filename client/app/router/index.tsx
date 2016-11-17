@@ -7,6 +7,7 @@ import toString from './toString';
 // import { Promise } from 'when';
 import createRoutes from './routes';
 import { configureStore, setAsCurrentStore } from '../store/configureStore';
+import * as Actions from '../actions';
 
 export function run() {
     // init promise polyfill
