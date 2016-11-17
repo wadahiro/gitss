@@ -12,8 +12,6 @@ const BHero = require('re-bulma/lib/layout/hero').default;
 const BHeroHead = require('re-bulma/lib/layout/hero-head').default;
 const BHeroBody = require('re-bulma/lib/layout/hero-body').default;
 
-const MDSpinner = require('react-md-spinner').default;
-
 interface NavProps {
     onKeyDown: React.KeyboardEventHandler;
     loading: boolean;
@@ -42,6 +40,8 @@ export class NavBar extends React.PureComponent<NavProps, void> {
             paddingRight: 24
         };
 
+        const icon = this.props.loading ? 'fa fa-refresh fa-spin fa-3x fa-fw' : 'fa fa-search';
+
         // <img src="./imgs/title.png" alt="GitSS" width='400'/>
         return (
             <div style={rootTyle}>
@@ -55,7 +55,7 @@ export class NavBar extends React.PureComponent<NavProps, void> {
                         <BNavItem>
                             <InputText
                                 placeholder='Search'
-                                icon='fa fa-search'
+                                icon={icon}
                                 size='isLarge'
                                 hasIcon
                                 defaultValue={this.props.query}
@@ -69,9 +69,7 @@ export class NavBar extends React.PureComponent<NavProps, void> {
                 <BHero style={{ backgroundColor: '#f5f7fa', borderBottom: '1px solid #ccc' }}>
                     <BHeroHead>
                         <Container hasTextCentered>
-                            {this.props.loading ?
-                                <MDSpinner />
-                                :
+                            {this.props.result &&
                                 <p style={{ margin: 5 }}><b>We’ve found {this.props.result.size}&nbsp;code results {this.props.result.time > 0 ? `(${Math.round(this.props.result.time * 1000) / 1000} seconds)` : ''}</b></p>
                             }
                         </Container>
