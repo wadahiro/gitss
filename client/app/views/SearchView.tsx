@@ -15,8 +15,6 @@ import { Facets } from '../components/Facets';
 import { RootState, SearchResult, SearchFacets, FilterParams, FacetKey } from '../reducers';
 import * as Actions from '../actions';
 
-const MDSpinner = require('react-md-spinner').default;
-
 interface Props {
     dispatch?: Dispatch<Action>;
     query:string;
