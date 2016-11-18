@@ -28,9 +28,21 @@ export class SearchResultPanel extends React.PureComponent<SearchResultPanelProp
                     </Row>
                 }
                 {result.hits.map(x => {
+                    const lineCount = x.preview.reduce((s, y) => {
+                        s += y.preview.split('\n').length;
+                        return s;
+                    }, 0);
+                    const margin = 10;
+                    const padding = 20;
+                    const title = 21 + 17;
+                    const gap = x.preview.length * 20;
+                    const height = lineCount * 28 + gap + padding + title + padding + margin;
+
+                    // console.log(height)
+
                     return (
-                        <Row key={x.blob}>
-                            <LazyLoad height={200}>
+                        <Row key={`${x.organization}-${x.project}-${x.repository}-${x.path}-${x.blob}`}>
+                            <LazyLoad height={height}>
                                 <Col size='is12'>
                                     <FileContent metadata={x} keyword={x.keyword} preview={x.preview} />
                                 </Col>

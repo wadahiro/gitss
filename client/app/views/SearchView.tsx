@@ -12,7 +12,7 @@ import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
-import { RootState, SearchResult, SearchFacets, FilterParams, FacetKey } from '../reducers';
+import { RootState, SearchResult, SearchFacets, BaseFilterParams, FilterParams, FacetKey } from '../reducers';
 import * as Actions from '../actions';
 
 interface Props {
@@ -26,15 +26,15 @@ interface Props {
     // react-router inject props
     location?: any;
     history?: any;
+    params?: BaseFilterParams;
 }
-
 
 class SearchView extends React.Component<Props, void> {
     componentWillMount() {
         let count = 0;
-        this.props.history.listen((arg1, {location, routeParams}) => {
+        this.props.history.listen((arg1, {location, params}) => {
             if (location.query.q !== undefined && location.query.q !== '') {
-                Actions.search(this.props.dispatch, routeParams, location.query);
+                Actions.search(this.props.dispatch, params, location.query);
             }
         });
     }
@@ -68,7 +68,16 @@ class SearchView extends React.Component<Props, void> {
 
         return (
             <div>
-                <NavBar onKeyDown={this.handleKeyDown} loading={this.props.loading} result={this.props.result} query={query} />
+                <NavBar onKeyDown={this.handleKeyDown}
+                    loading={this.props.loading}
+                    result={this.props.result}
+                    query={query}
+                    organization={this.props.params.organization}
+                    project={this.props.params.project}
+                    repository={this.props.params.repository}
+                    branch={this.props.params.branch}
+                    tag={this.props.params.tag}
+                    />
                 <Section style={{ marginTop: 80 }}>
                     <Row>
                         <Col size='is3' style={sidePanelStyle}>
