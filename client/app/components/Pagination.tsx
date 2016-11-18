@@ -85,25 +85,25 @@ export class Pager extends React.PureComponent<PagerProps, void> {
 
         if (start > 0) {
             pageButtons.push((
-                <li>
+                <li key={0}>
                     <PageButton onClick={this.showPage.bind(null, 0)}>1</PageButton>
                 </li>
             ));
-            pageButtons.push(<li>...</li>);
+            pageButtons.push(<li key='dot-before'>...</li>);
         }
 
         for (let index = start; index <= end; index++) {
             pageButtons.push((
-                <li>
+                <li key={index}>
                     <PageButton onClick={this.showPage.bind(null, index)} isActive={index === current}>{index + 1}</PageButton>
                 </li>
             ));
         }
 
         if (end < lastIndex) {
-            pageButtons.push(<li>...</li>);
+            pageButtons.push(<li key='dot-after'>...</li>);
             pageButtons.push((
-                <li>
+                <li key={lastIndex}>
                     <PageButton onClick={this.showPage.bind(null, lastIndex)}>{lastIndex + 1}</PageButton>
                 </li>
             ));
