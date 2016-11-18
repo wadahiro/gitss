@@ -28,6 +28,14 @@ export interface AppState {
     result: SearchResult;
 }
 
+export interface BaseFilterParams {
+    organization?: string;
+    project?: string;
+    repository?: string;
+    branch?: string;
+    tag?: string;
+}
+
 export interface FilterParams {
     a?: AdvancedSearchType;
     x?: string[]; // ext
@@ -118,10 +126,10 @@ export interface OranizationFacet {
 export interface ProjectFacet {
     term: string;
     count: number;
-    repositories: RepositoryFace[];
+    repositories: RepositoryFacet[];
 }
 
-export interface RepositoryFace {
+export interface RepositoryFacet {
     term: string;
     count: number;
     refs: RefFacets[];

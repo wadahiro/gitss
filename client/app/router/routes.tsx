@@ -28,10 +28,12 @@ export default ({store, first}) => {
     return (
         <Route component={Layout}>
             <Route path="/" component={SearchView} />
-            <Route path="/search" component={SearchView} />
-            <Route path="/search/:organization" component={SearchView} />
-            <Route path="/search/:organization/:project" component={SearchView} />
-            <Route path="/search/:organization/:project/:repository" component={SearchView} />
+            <Route path="/s" component={SearchView} />
+            <Route path="/s/:organization" component={SearchView} />
+            <Route path="/s/:organization/:project" component={SearchView} />
+            <Route path="/s/:organization/:project/:repository" component={SearchView} />
+            <Route path="/s/:organization/:project/:repository/branch/:branch" component={SearchView} />
+            <Route path="/s/:organization/:project/:repository/tag/:tag" component={SearchView} />
             <Route path="*" component={NotFoundView} />
         </Route>
     );

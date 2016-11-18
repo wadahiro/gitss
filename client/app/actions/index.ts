@@ -3,7 +3,7 @@ import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
-import { FilterParams } from '../reducers';
+import { BaseFilterParams, FilterParams } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
@@ -46,7 +46,7 @@ export function triggerFilter(dispatch: Dispatch<Search>, filterParams?: FilterP
     _triggerSearch(filterParams, page);
 }
 
-export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): void {
+export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterParams = {}, filterParams: FilterParams): void {
 
     dispatch({
         type: 'SEARCH_START',
@@ -55,7 +55,12 @@ export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): 
         }
     });
 
-    WebApi.query('search', filterParams)
+    const params = Object.keys(baseFilterParams).reduce((s, x) => {
+        s[x[0]] = [baseFilterParams[x]];
+        return s;
+    }, filterParams);
+
+    WebApi.query('search', params)
         .then(res => {
             // console.log(res);
             dispatch({

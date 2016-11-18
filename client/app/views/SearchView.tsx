@@ -16,22 +16,25 @@ import { RootState, SearchResult, SearchFacets, FilterParams, FacetKey } from '.
 import * as Actions from '../actions';
 
 interface Props {
-    dispatch?: Dispatch<Action>;
-    query:string;
+    query: string;
     loading: boolean;
     filterParams: FilterParams;
     result: SearchResult;
     facets: SearchFacets;
+    // react-redux inject props
+    dispatch?: Dispatch<Action>;
+    // react-router inject props
     location?: any;
     history?: any;
 }
 
+
 class SearchView extends React.Component<Props, void> {
     componentWillMount() {
         let count = 0;
-        this.props.history.listen((arg1, {location}) => {
+        this.props.history.listen((arg1, {location, routeParams}) => {
             if (location.query.q !== undefined && location.query.q !== '') {
-                Actions.search(this.props.dispatch, location.query);
+                Actions.search(this.props.dispatch, routeParams, location.query);
             }
         });
     }

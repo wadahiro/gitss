@@ -1,4 +1,5 @@
 var webpack = require('webpack')
+var ExtractTextPlugin = require('extract-text-webpack-plugin')
 
 var path = require('path')
 var objectAssign = require('object-assign')
@@ -27,15 +28,18 @@ module.exports = {
     loaders: [
       {
         test: /\.woff(2)?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-        loader: 'url-loader?limit=10000&mimetype=application/font-woff'
+        loader: 'url-loader?limit=10000&mimetype=application/font-woff&publicPath=../&name=./css/[hash].[ext]'
       },
       {
         test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-        loader: 'file-loader'
+        loader: 'file-loader?publicPath=../&name=./css/[hash].[ext]'
       },
       {
         test: /\.css$/,
-        loader: 'style-loader!css-loader',
+        loader: ExtractTextPlugin.extract({
+          fallbackLoader: 'style-loader',
+          loader: 'css-loader'
+        })
       },
       {
         test: /\.js(x?)$/,
@@ -57,6 +61,7 @@ module.exports = {
     extensions: ['.tsx', '.ts', '.js', '.jsx']
   },
   plugins: [
+    new ExtractTextPlugin('css/style.css')
   ],
   cache: true
 }
