@@ -27,6 +27,10 @@ interface Props {
     location?: any;
     history?: any;
     params?: BaseFilterParams;
+    // lazy fetch
+    organizations?: string[];
+    projects?: string[];
+    repositories?: string[];
 }
 
 class SearchView extends React.Component<Props, void> {
@@ -37,6 +41,10 @@ class SearchView extends React.Component<Props, void> {
                 Actions.search(this.props.dispatch, params, location.query);
             }
         });
+        Actions.getBaseFilters(this.props.dispatch,
+            this.props.params.organization,
+            this.props.params.project,
+            this.props.params.repository);
     }
 
     handleKeyDown = (e: React.KeyboardEvent) => {
@@ -54,7 +62,8 @@ class SearchView extends React.Component<Props, void> {
     };
 
     render() {
-        const { loading, query, filterParams, result, facets } = this.props;
+        const { loading, query, filterParams, result, facets,
+            organizations, projects, repositories } = this.props;
 
         const sidePanelStyle = {
             position: 'fixed',
@@ -72,6 +81,9 @@ class SearchView extends React.Component<Props, void> {
                     loading={this.props.loading}
                     result={this.props.result}
                     query={query}
+                    organizations={organizations}
+                    projects={projects}
+                    repositories={repositories}
                     organization={this.props.params.organization}
                     project={this.props.params.project}
                     repository={this.props.params.repository}
@@ -101,6 +113,9 @@ function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
         query: props.location.query['q'] !== undefined ? props.location.query['q'] : '',
+        organizations: state.app.present.baseFilterOptions.organizations,
+        projects: state.app.present.baseFilterOptions.projects,
+        repositories: state.app.present.baseFilterOptions.repositories,
         filterParams: props.location.query,
         result: state.app.present.result,
         facets: state.app.present.facets

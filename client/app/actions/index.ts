@@ -7,16 +7,54 @@ import { BaseFilterParams, FilterParams } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
+    GetBaseFilters |
     Search |
     ResetFacets |
     SearchStart
     ;
 
+export interface GetBaseFilters extends Action {
+    type: 'GET_BASE_FILTERS';
+    payload: {
+        organizations: string[];
+        projects: string[];
+        repositories: string[];
+        branches: string[];
+        tags: string[];
+    };
+}
+
+type BaseFiltersType = 'organization' | 'project' | 'repository' | 'branch' | 'tag';
+
+export function getBaseFilters(dispatch: Dispatch<Search>, organization: string, project: string, repository: string): void {
+    let urlPath = '';
+    if (organization) {
+        urlPath += `/${organization}`;
+        if (project) {
+            urlPath += `/${project}`;
+            if (repository) {
+                urlPath += `/${repository}`;
+            }
+        }
+    }
+    WebApi.get(`filters${urlPath}`)
+        .then(res => {
+            // console.log(res);
+            dispatch({
+                type: 'GET_BASE_FILTERS',
+                payload: res
+            });
+        })
+        .catch(e => {
+            console.warn(e);
+        });
+}
+
 export interface Search extends Action {
     type: 'SEARCH';
     payload: {
         result: any;
-    }
+    };
 }
 
 export interface ResetFacets extends Action {

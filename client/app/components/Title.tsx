@@ -8,6 +8,7 @@ interface TitleProps {
     size?: SizeNum;
     style?: any;
     children?: React.ReactElement<any>;
+    onClick?: (e: any) => void;
 }
 
 export class Title extends React.PureComponent<TitleProps, void> {

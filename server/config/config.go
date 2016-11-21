@@ -20,16 +20,16 @@ var fileMutex sync.Mutex
 var indexedFileMutex sync.Mutex
 
 type Config struct {
-	DataDir      string
-	GitDataDir   string
-	ConfDir      string
-	IndexedDir   string
-	Port         int
-	IndexerType  string
-	SizeLimit    int64
-	Schedule     string
-	Debug        bool
-	settings     []SyncSetting
+	DataDir     string
+	GitDataDir  string
+	ConfDir     string
+	IndexedDir  string
+	Port        int
+	IndexerType string
+	SizeLimit   int64
+	Schedule    string
+	Debug       bool
+	settings    []SyncSetting
 }
 
 func NewConfig(c *cli.Context, debug bool) *Config {
@@ -46,15 +46,15 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 	schedule := c.GlobalString("schedule")
 
 	config := &Config{
-		DataDir:      dataDir,
-		GitDataDir:   gitDataDir,
-		ConfDir:      confDir,
-		IndexedDir:   indexedDir,
-		Port:         port,
-		IndexerType:  indexerType,
-		SizeLimit:    sizeLimit,
-		Schedule:     schedule,
-		Debug:        false,
+		DataDir:     dataDir,
+		GitDataDir:  gitDataDir,
+		ConfDir:     confDir,
+		IndexedDir:  indexedDir,
+		Port:        port,
+		IndexerType: indexerType,
+		SizeLimit:   sizeLimit,
+		Schedule:    schedule,
+		Debug:       false,
 	}
 
 	config.init()
@@ -152,6 +152,16 @@ func (c *Config) GetSettings() []SyncSetting {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 	return c.settings
+}
+
+func (c *Config) FindSetting(organization string) (SyncSetting, bool) {
+	settings := c.GetSettings()
+	for _, setting := range settings {
+		if setting.GetName() == organization {
+			return setting, true
+		}
+	}
+	return nil, false
 }
 
 type SyncSetting interface {

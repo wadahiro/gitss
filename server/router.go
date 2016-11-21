@@ -29,6 +29,7 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 
 	r.Use(func(c *gin.Context) {
 		c.Set("indexer", indexer)
+		c.Set("config", config)
 	})
 
 	r.Use(func(c *gin.Context) {
@@ -58,6 +59,11 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 	})
 
 	r.GET(apiPrefix+"search", controller.SearchIndex)
+	r.GET(apiPrefix+"filters/", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization/:project", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization/:project/:repository", controller.GetBaseFilters)
+
 
 	// react server-side rendering
 	// react := NewReact(

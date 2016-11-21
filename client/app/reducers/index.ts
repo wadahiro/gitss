@@ -26,6 +26,8 @@ export interface AppState {
     loading: boolean;
     facets: SearchFacets;
     result: SearchResult;
+
+    baseFilterOptions: BaseFilterOptions;
 }
 
 export interface BaseFilterParams {
@@ -34,6 +36,14 @@ export interface BaseFilterParams {
     repository?: string;
     branch?: string;
     tag?: string;
+}
+
+export interface BaseFilterOptions {
+    organizations: string[]
+    projects: string[]
+    repositories: string[]
+    branches: string[]
+    tags: string[]
 }
 
 export interface FilterParams {
@@ -156,18 +166,38 @@ function init(): AppState {
             next: 0,
             isLastPage: true,
             hits: []
+        },
+        baseFilterOptions: {
+            organizations: [],
+            projects: [],
+            repositories: [],
+            branches: [],
+            tags: [],
         }
     };
 }
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
+        case 'GET_BASE_FILTERS':
+            return {
+                ...state,
+                baseFilterOptions: {
+                    organizations: action.payload.organizations || [],
+                    projects: action.payload.projects || [],
+                    repositories: action.payload.repositories || [],
+                    branches: action.payload.branches || [],
+                    tags: action.payload.tags || []
+                }
+            };
+
         case 'SEARCH_START':
             return {
                 ...state,
                 loading: true,
                 filterParams: action.payload.filterParams || {}
             };
+
         case 'RESET_FACETS':
             return {
                 facets: {
