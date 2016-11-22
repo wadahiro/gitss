@@ -39,11 +39,16 @@ export interface BaseFilterParams {
 }
 
 export interface BaseFilterOptions {
-    organizations: string[]
-    projects: string[]
-    repositories: string[]
-    branches: string[]
-    tags: string[]
+    organizations: Option[];
+    projects: Option[];
+    repositories: Option[];
+    branches: Option[];
+    tags: Option[];
+}
+
+export interface Option {
+    label: string;
+    value: string;
 }
 
 export interface FilterParams {
@@ -172,23 +177,28 @@ function init(): AppState {
             projects: [],
             repositories: [],
             branches: [],
-            tags: [],
+            tags: []
         }
     };
+}
+
+function toOptions(array: string[] = []): Option[] {
+    return array.map(x => ({ label: x, value: x }));
 }
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
         case 'GET_BASE_FILTERS':
+
             return {
                 ...state,
                 baseFilterOptions: {
-                    organizations: action.payload.organizations || [],
-                    projects: action.payload.projects || [],
-                    repositories: action.payload.repositories || [],
-                    branches: action.payload.branches || [],
-                    tags: action.payload.tags || []
-                }
+                    organizations: toOptions(action.payload.organizations),
+                    projects: toOptions(action.payload.projects),
+                    repositories: toOptions(action.payload.repositories),
+                    branches: toOptions(action.payload.branches),
+                    tags: toOptions(action.payload.tags)
+                } as BaseFilterOptions
             };
 
         case 'SEARCH_START':
@@ -200,6 +210,7 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
 
         case 'RESET_FACETS':
             return {
+                ...state,
                 facets: {
                     facets: {},
                     fullRefsFacet: []

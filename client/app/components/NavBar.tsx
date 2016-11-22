@@ -1,11 +1,11 @@
 import * as React from 'react';
 import { findDOMNode } from 'react-dom';
 
-import { Container, Grid, Row, Col } from './Grid';
-import { Select, Option } from './Select';
+import { Container, TRow, TCol } from './Grid';
+import { Select, Option, createIconValue } from './Select';
 import { InputText } from './Input';
 import { Title } from './Title';
-import { SearchResult } from '../reducers';
+import { SearchResult, BaseFilterParams, BaseFilterOptions } from '../reducers';
 
 const Overlay = require('react-overlays/lib/Overlay');
 
@@ -16,11 +16,15 @@ const BHero = require('re-bulma/lib/layout/hero').default;
 const BHeroHead = require('re-bulma/lib/layout/hero-head').default;
 const BHeroBody = require('re-bulma/lib/layout/hero-body').default;
 
-interface NavProps extends BreadcrumbsProps {
+interface NavProps {
     onKeyDown: React.KeyboardEventHandler;
     loading: boolean;
     result: SearchResult;
     query?: string;
+
+    onBaseFilterChange: (value: BaseFilterParams) => void;
+    baseFilterParams: BaseFilterParams;
+    baseFilterOptions: BaseFilterOptions;
 }
 
 interface NavState {
@@ -69,11 +73,6 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
             marginRight: 5
         };
 
-        const organizations = [{
-            label: this.props.organization,
-            value: this.props.organization
-        }];
-
         const TooltipArrowStyle = {
             position: 'absolute',
             width: 0,
@@ -87,6 +86,8 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
             opacity: .75
         };
 
+        const { baseFilterParams, baseFilterOptions } = this.props;
+
         // <img src="./imgs/title.png" alt="GitSS" width='400'/>
         return (
             <div style={rootTyle}>
@@ -96,7 +97,9 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
                             <Title style={{ color: 'white' }}>GitSS</Title>
                         </NavItem>
                         <NavItem>
-                            <Breadcrumbs {...this.props} />
+                            <BaseFilterNav values={baseFilterParams}
+                                options={baseFilterOptions}
+                                onChange={this.props.onBaseFilterChange} />
                         </NavItem>
                     </BNavGroup>
                     <BNavGroup align='right' style={navGroupStyle}>
@@ -126,7 +129,6 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
     }
 }
 
-
 const navItemStyle = {
     paddingTop: 3,
     paddingBottom: 3
@@ -142,44 +144,120 @@ class NavItem extends React.PureComponent<void, void> {
     }
 }
 
-interface BreadcrumbsProps {
-    organizations?: string[];
-    projects?: string[];
-    repositories?: string[];
-    branches?: string[];
-    tags?: string[];
-
-    organization?: string;
-    project?: string;
-    repository?: string;
-    branch?: string;
-    tag?: string;
+interface BaseFilterNavProps {
+    values: BaseFilterParams;
+    options: BaseFilterOptions;
+    onChange: (params: BaseFilterParams) => void;
 }
 
-class Breadcrumbs extends React.PureComponent<BreadcrumbsProps, void> {
+class BaseFilterNav extends React.PureComponent<BaseFilterNavProps, void> {
+    handleOrganizationChange = (option: Option) => {
+        const newParams = {
+            ...this.props.values,
+            organization: option.value
+        }
+        this.props.onChange(newParams);
+    };
+
+    handleProjectChange = (option: Option) => {
+        const newParams = {
+            ...this.props.values,
+            project: option.value
+        }
+        this.props.onChange(newParams);
+    };
+
+    handleRepositoryChange = (option: Option) => {
+        const newParams = {
+            ...this.props.values,
+            repository: option.value
+        }
+        this.props.onChange(newParams);
+    };
+
+    handleRefChange = (option: IconOption) => {
+        const newParams = {
+            ...this.props.values,
+            [option.type]: option.value
+        }
+        this.props.onChange(newParams);
+    };
+
     render() {
+        const { organization, project, repository, branch, tag} = this.props.values;
+        const { organizations, projects, repositories, branches, tags} = this.props.options;
+
+        const ref = branch || tag;
+        const refIcon = branch ? 'branch' : 'tag';
+        const refsOptions = makeRefOptions(branches, tags);
+
         return (
-            <Grid>
-                <Row>
-                    {this.props.organization &&
-                        <BaseFilterSelect options={this.props.organizations} value={this.props.organization} icon='organization' />
-                    }
-                    {this.props.project &&
-                        <BaseFilterSelect options={this.props.projects} value={this.props.project} icon='project' />
-                    }
-                    {this.props.repository &&
-                        <BaseFilterSelect options={this.props.repositories} value={this.props.repository} icon='repository' />
-                    }
-                    {this.props.branch &&
-                        <BaseFilterSelect options={this.props.branches} value={this.props.branch} icon='branch' />
-                    }
-                    {this.props.tag &&
-                        <BaseFilterSelect options={this.props.tags} value={this.props.tag} icon='tag' />
-                    }
-                </Row>
-            </Grid>
+            <TRow>
+                <TCol style={{ textAlign: 'left' }}>
+                    <BaseFilterSelect show={true}
+                        showAngle={organization !== undefined}
+                        options={organizations}
+                        value={organization}
+                        icon='organization'
+                        onChange={this.handleOrganizationChange} />
+                </TCol>
+
+                <TCol style={{ textAlign: 'left' }}>
+                    <BaseFilterSelect show={projects && projects.length > 0}
+                        showAngle={project !== undefined}
+                        options={projects}
+                        value={project}
+                        icon='project'
+                        onChange={this.handleProjectChange} />
+                </TCol>
+
+                <TCol style={{ textAlign: 'left' }}>
+                    <BaseFilterSelect show={repositories && repositories.length > 0}
+                        showAngle={repository !== undefined}
+                        options={repositories}
+                        value={repository}
+                        icon='repository'
+                        onChange={this.handleRepositoryChange} />
+                </TCol>
+
+                <TCol style={{ textAlign: 'left' }}>
+                    <BaseFilterSelect show={refsOptions.length > 0}
+                        showAngle={false}
+                        options={refsOptions}
+                        value={ref}
+                        icon={refIcon}
+                        onChange={this.handleRefChange} />
+                </TCol>
+            </TRow>
         );
     }
+}
+
+function makeRefOptions(branches: Option[], tags: Option[]): IconOption[] {
+    const b = branches.map(x => {
+        const o = {
+            ...x,
+            type: 'branch',
+            icon: 'fa fa-code-fork'
+        }
+        return o;
+    });
+
+    const t = tags.map(x => {
+        const o = {
+            ...x,
+            type: 'tag',
+            icon: 'fa fa-code-tag'
+        }
+        return o;
+    });
+
+    return b.concat(t);
+}
+
+interface IconOption extends Option {
+    icon: string;
+    type: string;
 }
 
 const angleIconTyle = {
@@ -197,14 +275,16 @@ class AngleIcon extends React.PureComponent<void, void> {
 interface BaseFilterSelectProps {
     name?: string;
     className?: string;
-    options?: string[];
-    value?: string | string[];
-    onChange?: (values: Option[]) => void;
+    options?: Option[];
+    value?: string;
+    onChange?: (value: Option) => void;
     icon?: 'organization' | 'project' | 'repository' | 'branch' | 'tag';
     clearable?: boolean;
     valueComponent?: any;
     arrowRenderer?: any;
     style?: any;
+    show: boolean;
+    showAngle: boolean;
 }
 
 class BaseFilterSelect extends React.PureComponent<BaseFilterSelectProps, void> {
@@ -212,9 +292,21 @@ class BaseFilterSelect extends React.PureComponent<BaseFilterSelectProps, void> 
         options: []
     };
 
+    handleChange = (option: Option) => {
+        this.props.onChange(option);
+    };
+
     render() {
-        const width = this.props.value ? this.props.value.length : 1;
-        const o = this.props.options.map(x => ({ label: x, value: x }))
+        if (!this.props.show) {
+            return null;
+        }
+
+        const width = this.props.options.reduce((s, x) => {
+            if (s < x.label.length) {
+                return x.label.length;
+            }
+            return s;
+        }, this.props.value ? this.props.value.length : 1);
 
         let IconValue = null;
         switch (this.props.icon) {
@@ -235,38 +327,48 @@ class BaseFilterSelect extends React.PureComponent<BaseFilterSelectProps, void> 
                 break;
         }
 
-        return <Select className='IconSelect'
-            options={o}
-            clearable={false}
-            value={this.props.value}
-            onChange={this.props.onChange}
-            valueComponent={IconValue}
-            arrowRenderer={arrowRenderer}
-            style={{ width: `${width + 2}em`, }}
-            />;
+        const inputProps = {
+            inputStyle: {
+                color: 'white'
+            }
+        };
+
+        return (
+            <TRow>
+                <TCol>
+                    <Select className='IconSelect'
+                        options={this.props.options}
+                        clearable={false}
+                        value={this.props.value}
+                        onChange={this.handleChange}
+                        inputProps={inputProps}
+                        valueComponent={IconValue}
+                        arrowRenderer={arrowRenderer}
+                        style={{ width: `${width + 2}em` }}
+                        />
+                </TCol>
+                {this.props.showAngle &&
+                    <TCol>
+                        <AngleIcon />
+                    </TCol>
+                }
+            </TRow>
+        );
     }
 }
 
-const OrganizationIconValue = createIconValue('fa fa-th-large');
-const ProjectIconValue = createIconValue('fa fa-cube');
-const RepositoryIconValue = createIconValue('fa fa-database');
-const BranchIconValue = createIconValue('fa fa-code-fork');
-const TagIconValue = createIconValue('fa fa-tag');
+const iconValueStyle = {
+    paddingLeft: 5,
+    backgroundColor: 'rgb(32, 80, 129)',
+    color: 'white',
+    fontSize: 18
+};
 
-function createIconValue(icon: string) {
-    return class IconValue extends React.PureComponent<void, void>{
-        render() {
-            return (
-                <div className="Select-value" style={{ paddingLeft: 5, backgroundColor: 'rgb(32, 80, 129)' }}>
-                    <span className="Select-value-label" style={{ color: 'white', fontSize: 18 }}>
-                        <i className={icon} style={{ paddingRight: 5 }} />
-                        {this.props.children}
-                    </span>
-                </div>
-            );
-        }
-    }
-}
+const OrganizationIconValue = createIconValue('fa fa-th-large', iconValueStyle);
+const ProjectIconValue = createIconValue('fa fa-cube', iconValueStyle);
+const RepositoryIconValue = createIconValue('fa fa-database', iconValueStyle);
+const BranchIconValue = createIconValue('fa fa-code-fork', iconValueStyle);
+const TagIconValue = createIconValue('fa fa-tag', iconValueStyle);
 
 function arrowRenderer() {
     return (

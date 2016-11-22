@@ -50,3 +50,53 @@ export function Col(props: ColProps) {
         </Column>
     );
 }
+
+const tableRowStyle = {
+    wrapper: {
+        display: 'table'
+    },
+    item: {
+        display: 'table-cell',
+        textAlign: 'left'
+    }
+};
+
+interface TRowProps {
+    style?: Object;
+    children?: any;
+}
+
+export function TRow(props: TRowProps) {
+    let style = tableRowStyle.wrapper;
+    if (props && props.style) {
+        style = {
+            ...style,
+            ...props.style
+        };
+    }
+    return (
+        <div style={style}>
+            {props.children}
+        </div>
+    );
+}
+
+interface TColProps {
+    style?: Object;
+    children?: any;
+}
+
+export function TCol(props: TColProps) {
+    let style = tableRowStyle.item;
+    if (props && props.style) {
+        style = {
+            ...style,
+            ...props.style
+        };
+    }
+    return (
+        <div style={style}>
+            {props.children}
+        </div>
+    );
+}

@@ -32,8 +32,8 @@ export default ({store, first}) => {
             <Route path="/s/:organization" component={SearchView} />
             <Route path="/s/:organization/:project" component={SearchView} />
             <Route path="/s/:organization/:project/:repository" component={SearchView} />
-            <Route path="/s/:organization/:project/:repository/branch/:branch" component={SearchView} />
-            <Route path="/s/:organization/:project/:repository/tag/:tag" component={SearchView} />
+            <Route path="/s/:organization/:project/:repository/branches/:branch" component={SearchView} />
+            <Route path="/s/:organization/:project/:repository/tags/:tag" component={SearchView} />
             <Route path="*" component={NotFoundView} />
         </Route>
     );

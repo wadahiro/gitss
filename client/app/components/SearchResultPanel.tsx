@@ -16,6 +16,10 @@ interface SearchResultPanelProps {
 export class SearchResultPanel extends React.PureComponent<SearchResultPanelProps, void> {
     render() {
         const { result } = this.props;
+        if (!result) {
+            return null;
+        }
+
         const pageSize = Math.ceil(result.size / result.limit) || 0;
 
         return (

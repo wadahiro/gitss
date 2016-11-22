@@ -68,7 +68,7 @@ export interface SearchStart extends Action {
     };
 }
 
-export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void {
+export function triggerSearch(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, query?: string): void {
     // reset filters & current facets
     dispatch({
         type: 'RESET_FACETS'
@@ -77,11 +77,34 @@ export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void 
     const params = {
         q: query
     };
-    _triggerSearch(params, 0);
+    _triggerSearch(baseFilterParmas, params, 0);
 }
 
-export function triggerFilter(dispatch: Dispatch<Search>, filterParams?: FilterParams, page: number = 0): void {
-    _triggerSearch(filterParams, page);
+export function triggerFilter(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, filterParams?: FilterParams, page: number = 0): void {
+    _triggerSearch(baseFilterParmas, filterParams, page);
+}
+
+export function triggerBaseFilter(dispatch: Dispatch<Search>, baseFilterParams?: BaseFilterParams): void {
+    browserHistory.push(_makeBaseFilterPath(baseFilterParams));
+}
+
+function _makeBaseFilterPath(baseFilterParams: BaseFilterParams) {
+    let urlPath = '/';
+    if (baseFilterParams.organization) {
+        urlPath += `s/${baseFilterParams.organization}`;
+        if (baseFilterParams.project) {
+            urlPath += `/${baseFilterParams.project}`;
+            if (baseFilterParams.repository) {
+                urlPath += `/${baseFilterParams.repository}`;
+                if (baseFilterParams.branch) {
+                    urlPath += `/branches/${baseFilterParams.branch}`;
+                } else if (baseFilterParams.tag) {
+                    urlPath += `/tags/${baseFilterParams.tag}`;
+                }
+            }
+        }
+    }
+    return urlPath;
 }
 
 export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterParams = {}, filterParams: FilterParams): void {
@@ -93,10 +116,10 @@ export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterP
         }
     });
 
-    const params = Object.keys(baseFilterParams).reduce((s, x) => {
-        s[x[0]] = [baseFilterParams[x]];
-        return s;
-    }, filterParams);
+    const params = {
+        ...filterParams,
+        ..._toShortKeyParams(baseFilterParams)
+    };
 
     WebApi.query('search', params)
         .then(res => {
@@ -113,14 +136,27 @@ export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterP
         });
 }
 
-function _triggerSearch(filterParams?: FilterParams, page: number = 0): void {
+function _triggerSearch(baseFilterParams: BaseFilterParams, filterParams?: FilterParams, page: number = 0): void {
     const queryParams = {
         ...filterParams,
         i: page
     };
 
-    browserHistory.push(`/?${WebApi.queryString(queryParams)}`);
+    browserHistory.push(`${_makeBaseFilterPath(baseFilterParams)}?${WebApi.queryString(queryParams)}`);
 }
+
+function _toShortKeyParams(baseFilterParams: BaseFilterParams) {
+    const params = Object.keys(baseFilterParams).reduce((s, x) => {
+        if (typeof baseFilterParams[x] === 'object') {
+            s[baseFilterParams[x].name[0]] = [baseFilterParams[x].value];
+        } else {
+            s[x[0]] = [baseFilterParams[x]];
+        }
+        return s;
+    }, {});
+    return params;
+}
+
 
 export function undo() {
     return ActionCreators.undo();

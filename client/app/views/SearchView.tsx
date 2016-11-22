@@ -12,7 +12,7 @@ import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
-import { RootState, SearchResult, SearchFacets, BaseFilterParams, FilterParams, FacetKey } from '../reducers';
+import { RootState, SearchResult, SearchFacets, BaseFilterParams, BaseFilterOptions, FilterParams, FacetKey } from '../reducers';
 import * as Actions from '../actions';
 
 interface Props {
@@ -28,9 +28,8 @@ interface Props {
     history?: any;
     params?: BaseFilterParams;
     // lazy fetch
-    organizations?: string[];
-    projects?: string[];
-    repositories?: string[];
+    baseFilterParams?: BaseFilterParams;
+    baseFilterOptions?: BaseFilterOptions;
 }
 
 class SearchView extends React.Component<Props, void> {
@@ -40,16 +39,17 @@ class SearchView extends React.Component<Props, void> {
             if (location.query.q !== undefined && location.query.q !== '') {
                 Actions.search(this.props.dispatch, params, location.query);
             }
+
+            Actions.getBaseFilters(this.props.dispatch,
+                params.organization,
+                params.project,
+                params.repository);
         });
-        Actions.getBaseFilters(this.props.dispatch,
-            this.props.params.organization,
-            this.props.params.project,
-            this.props.params.repository);
     }
 
     handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.keyCode === 13) {
-            Actions.triggerSearch(this.props.dispatch, e.target['value']);
+            Actions.triggerSearch(this.props.dispatch, this.props.baseFilterParams, e.target['value']);
         }
     };
 
@@ -61,9 +61,13 @@ class SearchView extends React.Component<Props, void> {
         Actions.triggerFilter(this.props.dispatch, this.props.filterParams, page);
     };
 
+    handleBaseFilterChange = (values: BaseFilterParams) => {
+        Actions.triggerBaseFilter(this.props.dispatch, values);
+    };
+
     render() {
         const { loading, query, filterParams, result, facets,
-            organizations, projects, repositories } = this.props;
+            baseFilterParams, baseFilterOptions } = this.props;
 
         const sidePanelStyle = {
             position: 'fixed',
@@ -81,14 +85,9 @@ class SearchView extends React.Component<Props, void> {
                     loading={this.props.loading}
                     result={this.props.result}
                     query={query}
-                    organizations={organizations}
-                    projects={projects}
-                    repositories={repositories}
-                    organization={this.props.params.organization}
-                    project={this.props.params.project}
-                    repository={this.props.params.repository}
-                    branch={this.props.params.branch}
-                    tag={this.props.params.tag}
+                    baseFilterParams={baseFilterParams}
+                    baseFilterOptions={baseFilterOptions}
+                    onBaseFilterChange={this.handleBaseFilterChange}
                     />
                 <Section style={{ marginTop: 80 }}>
                     <Row>
@@ -113,13 +112,18 @@ function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
         query: props.location.query['q'] !== undefined ? props.location.query['q'] : '',
-        organizations: state.app.present.baseFilterOptions.organizations,
-        projects: state.app.present.baseFilterOptions.projects,
-        repositories: state.app.present.baseFilterOptions.repositories,
         filterParams: props.location.query,
         result: state.app.present.result,
-        facets: state.app.present.facets
+        facets: state.app.present.facets,
+
+        // Convert react-router injected params
+        baseFilterParams: toBaseFilterParams(props.params),
+        baseFilterOptions: state.app.present.baseFilterOptions
     };
+}
+
+function toBaseFilterParams(params: Object): BaseFilterParams {
+    return params;
 }
 
 const SearchViewContainer = connect(
