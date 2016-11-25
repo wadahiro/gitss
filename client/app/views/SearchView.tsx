@@ -54,15 +54,15 @@ class SearchView extends React.Component<Props, void> {
     };
 
     handleFacetToggle = (filterParams: FilterParams) => {
-        Actions.triggerFilter(this.props.dispatch, filterParams);
+        Actions.triggerFilter(this.props.dispatch, this.props.baseFilterParams, filterParams, this.props.query);
     };
 
     handlePageChange = (page: number) => {
-        Actions.triggerFilter(this.props.dispatch, this.props.filterParams, page);
+        Actions.triggerFilter(this.props.dispatch, this.props.baseFilterParams, this.props.filterParams, this.props.query, page);
     };
 
     handleBaseFilterChange = (values: BaseFilterParams) => {
-        Actions.triggerBaseFilter(this.props.dispatch, values);
+        Actions.triggerBaseFilter(this.props.dispatch, values, this.props.filterParams, this.props.query);
     };
 
     render() {

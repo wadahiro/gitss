@@ -80,12 +80,26 @@ export function triggerSearch(dispatch: Dispatch<Search>, baseFilterParmas: Base
     _triggerSearch(baseFilterParmas, params, 0);
 }
 
-export function triggerFilter(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, filterParams?: FilterParams, page: number = 0): void {
-    _triggerSearch(baseFilterParmas, filterParams, page);
+export function triggerFilter(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, filterParams: FilterParams, query: string, page: number = 0): void {
+    const params = {
+        ...filterParams,
+        q: query
+    };
+    _triggerSearch(baseFilterParmas, params, page);
 }
 
-export function triggerBaseFilter(dispatch: Dispatch<Search>, baseFilterParams?: BaseFilterParams): void {
-    browserHistory.push(_makeBaseFilterPath(baseFilterParams));
+export function triggerBaseFilter(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterParams, filterParams: FilterParams, query: string): void {
+    browserHistory.push(`${_makeBaseFilterPath(baseFilterParams)}?${_makeQueryString(filterParams, query)}`);
+}
+
+function _makeQueryString(filterParams: FilterParams, query: string): string {
+    const params = {
+        ...filterParams,
+        q: query
+    };
+    return Object.keys(params).map(x => {
+        return `${x}=${params[x]}`;
+    }).join('&');
 }
 
 function _makeBaseFilterPath(baseFilterParams: BaseFilterParams) {
