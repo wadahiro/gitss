@@ -11,35 +11,38 @@ interface ExtFacetProps {
     onToggle: (term: string) => void;
 }
 
-export function ExtFacet(props: ExtFacetProps) {
-    if (!props.facet || !props.facet.terms) {
-        return null;
+export class ExtFacet extends React.PureComponent<ExtFacetProps, void> {
+    render() {
+        const { facet, selected, onToggle } = this.props;
+        if (!facet || !facet.terms) {
+            return null;
+        }
+
+        return (
+            <Panel>
+                <PanelHeading>File extensions</PanelHeading>
+                <Menu>
+                    <MenuList>
+                        {facet.terms.map(x => {
+                            const type = x.term !== '/noext/' ? x.term : '(No extension)';
+                            const style = {
+                                padding: 0
+                            }
+                            const isToggled = contains(selected, x.term);
+
+                            return (
+                                <PanelBlock key={type} style={style}>
+                                    <li onClick={onToggle.bind(null, x.term)}>
+                                        <MenuLink count={x.count} isToggled={isToggled}>{type}</MenuLink>
+                                    </li>
+                                </PanelBlock>
+                            )
+                        })}
+                    </MenuList>
+                </Menu>
+            </Panel>
+        );
     }
-
-    return (
-        <Panel>
-            <PanelHeading>File extensions</PanelHeading>
-            <Menu>
-                <MenuList>
-                    {props.facet.terms.map(x => {
-                        const type = x.term !== '/noext/' ? x.term : '(No extension)';
-                        const style = {
-                            padding: 0
-                        }
-                        const isToggled = contains(props.selected, x.term);
-
-                        return (
-                            <PanelBlock key={type} style={style}>
-                                <li onClick={props.onToggle.bind(null, x.term)}>
-                                    <MenuLink count={x.count} isToggled={isToggled}>{type}</MenuLink>
-                                </li>
-                            </PanelBlock>
-                        )
-                    })}
-                </MenuList>
-            </Menu>
-        </Panel>
-    );
 }
 
 function contains(array = [], item) {

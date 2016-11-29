@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	pb "gopkg.in/cheggaaa/pb.v1"
 	// "io"
 	// "io/ioutil"
 	// "os"
@@ -15,9 +17,11 @@ import (
 	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
-	"github.com/wadahiro/gitss/server/util"
+	// "github.com/wadahiro/gitss/server/util"
+	"bytes"
 
-	gitm "github.com/gogits/git-module"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
 )
 
 type GitImporter struct {
@@ -45,78 +49,136 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
-	branches, _ := repo.GetBranches()
-
-	refs, ok := g.config.GetRefs(organization, project, repo.Repository)
-	if !ok {
-		log.Printf("Not found repository setting. %s:%s/%s \n", organization, project, repo.Repository)
+	// branches and tags in the git repository
+	// @TODO include, exclude options
+	branchMap, tagMap, err := repo.GetLatestCommitIdsMap(nil, nil, nil, nil)
+	if err != nil {
+		log.Printf("Failed to get latest commitIds of branch and tag. %+v\n", err)
 		return
 	}
 
-	log.Printf("Start indexing for %s:%s/%s %v -> %v\n", organization, project, repo.Repository, branches, refs)
+	// branches in the config file
+	indexed := g.config.GetIndexed(organization, project, repo.Repository)
+
+	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, repo.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
+
+	// progress bar
+	bar := pb.StartNew(0)
+	bar.ShowPercent = true
 
 	start := time.Now()
 
-	for _, branch := range branches {
-		g.RunIndexing(url, repo, branch)
+	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap)
+	if err != nil {
+		log.Printf("Failed to index. %+v", err)
+		return
 	}
 
 	// Remove index for removed branches
-	removeRefs := []string{}
-	for _, ref := range refs {
+	removeBranches := []string{}
+	for ref, _ := range indexed.Branches {
 		found := false
-		for _, branch := range branches {
-			if ref.Name == branch {
+		for branch := range branchMap {
+			if ref == branch {
 				found = true
 				break
 			}
 		}
 		if !found {
-			removeRefs = append(removeRefs, ref.Name)
+			removeBranches = append(removeBranches, ref)
 		}
 	}
 
-	if len(removeRefs) > 0 {
-		log.Printf("Start index deleting for %s:%s/%s %v\n", organization, project, repo.Repository, removeRefs)
-		g.indexer.DeleteIndexByRefs(organization, project, repo.Repository, removeRefs)
+	bar.Total = bar.Total + int64(len(removeBranches))
+
+	// Remove index for removed tags
+	removeTags := []string{}
+	for ref, _ := range indexed.Tags {
+		found := false
+		for branch := range branchMap {
+			if ref == branch {
+				found = true
+				break
+			}
+		}
+		if !found {
+			removeTags = append(removeTags, ref)
+		}
+	}
+
+	bar.Total = bar.Total + int64(len(removeTags))
+
+	if len(removeBranches) > 0 || len(removeTags) > 0 {
+		log.Printf("Start index deleting for %s:%s/%s (%v) (%v)\n", organization, project, repo.Repository, removeBranches, removeTags)
+		g.indexer.DeleteIndexByRefs(organization, project, repo.Repository, removeBranches, removeTags)
+
+		bar.Add(len(removeBranches) + len(removeTags))
 
 		// Save config after deleting index completed
-		g.config.DeleteLatestIndexRefs(organization, project, repo.Repository, removeRefs)
+		g.config.DeleteIndexed(organization, project, repo.Repository, removeBranches, removeTags)
 	}
 
 	end := time.Now()
 	time := (end.Sub(start)).Seconds()
-	log.Printf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository)
+
+	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository))
 }
 
-func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName string) {
-	latestCommitId, _ := repo.GetBranchCommitID(branchName)
-	indexedCommitId, ok := g.config.GetIndexedCommitID(repo.Organization, repo.Project, repo.Repository, branchName)
+func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap) error {
+	// collect create file entries
+	createBranches := make(map[string]string)
+	updateBranches := make(map[string][2]string)
+	for branch, latestCommitID := range branchMap {
+		found := false
+		for indexedBranch, prevCommitID := range indexed.Branches {
+			if branch == indexedBranch {
+				found = true
+				if latestCommitID == prevCommitID {
+					log.Printf("Already up-to-date. %s", getLoggingTag(repo, branch, latestCommitID))
+				} else {
+					updateBranches[branch] = [2]string{prevCommitID, latestCommitID}
+				}
+				break
+			}
+		}
+		if !found {
+			createBranches[branch] = latestCommitID
+		}
+	}
 
-	tag := getLoggingTag(repo, branchName, latestCommitId)
-
-	if latestCommitId == indexedCommitId {
-		log.Printf("Already up-to-date. %s", tag)
-		return
+	createTags := make(map[string]string)
+	updateTags := make(map[string][2]string)
+	for tag, latestCommitID := range tagMap {
+		found := false
+		for indexedTag, prevCommitID := range indexed.Tags {
+			if tag == indexedTag {
+				found = true
+				if latestCommitID == prevCommitID {
+					log.Printf("Already up-to-date. %s", getLoggingTag(repo, tag, latestCommitID))
+				} else {
+					updateTags[tag] = [2]string{prevCommitID, latestCommitID}
+				}
+				break
+			}
+		}
+		if !found {
+			createTags[tag] = latestCommitID
+		}
 	}
 
 	queue := make(chan indexer.FileIndexOperation, 100)
 
-	if !ok {
-		fmt.Printf("New Indexing start: %s\n", tag)
-		g.CreateBranchIndex(queue, repo, branchName, latestCommitId)
-	} else {
-		fmt.Printf("Update Indexing start: %s\n", tag)
-		g.UpdateBranchIndex(queue, repo, branchName, indexedCommitId, latestCommitId)
-	}
+	// process
+	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags)
 
 	callBach := func(operations []indexer.FileIndexOperation) {
 		err := g.indexer.BatchFileIndex(operations)
 		if err != nil {
 			errors.Errorf("Batch indexed error: %+v", err)
 		} else {
-			fmt.Printf("Batch indexed %d files.\n", len(operations))
+			// fmt.Printf("Batch indexed %d files.\n", len(operations))
 		}
+		bar.Add(len(operations))
 	}
 
 	// batch
@@ -124,18 +186,20 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 	var opsSize int64 = 0
 	var batchLimitSize int64 = 1024 * 1024 // 1MB
 
+	// fmt.Println("start queue reading")
+
 	for op := range queue {
 		operations = append(operations, op)
 		opsSize += op.FileIndex.Size
 
 		// show progress
-		if len(operations)%80 == 0 {
-			fmt.Printf("\n")
-		}
-		fmt.Printf(".")
+		// if len(operations)%80 == 0 {
+		// 	fmt.Printf("\n")
+		// }
+		// fmt.Printf(".")
 
 		if opsSize >= batchLimitSize {
-			fmt.Printf("\n")
+			// fmt.Printf("\n")
 
 			callBach(operations)
 
@@ -147,187 +211,174 @@ func (g *GitImporter) RunIndexing(url string, repo *repo.GitRepo, branchName str
 
 	// remains
 	if len(operations) > 0 {
-		fmt.Printf("\n")
+		// fmt.Printf("\n")
 		callBach(operations)
 	}
 
 	// Save config after index completed
-	g.config.UpdateLatestIndex(url, repo.Organization, repo.Project, repo.Repository, branchName, latestCommitId)
+	err := g.config.UpdateIndexed(config.Indexed{Organization: repo.Organization, Project: repo.Project, Repository: repo.Repository, Branches: branchMap, Tags: tagMap})
+
+	if err != nil {
+		return errors.Wrapf(err, "Faild to update indexed.")
+	}
+
+	return nil
 }
 
-func (g *GitImporter) CreateBranchIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, latestCommitId string) error {
+func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string) error {
+	addFiles, err := r.GetFileEntriesMap(branchMap, tagMap)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to get file entries. branches: %v tags: %v", branchMap, tagMap)
+	}
 
-	workers := util.GenWorkers(10)
+	updateAddFiles, delFiles, err := r.GetDiffFileEntriesMap(updateBranchMap, updateTagMap)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to get diff. branches: %v tags: %v", branchMap, tagMap)
+	}
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		g.handleAddFiles(queue, bar, r, addFiles)
+		g.handleAddFiles(queue, bar, r, updateAddFiles)
+		g.handleDelFiles(queue, bar, r, delFiles)
+	}()
 
-		err := r.GetFileEntriesIterator(latestCommitId, func(fileEntry repo.FileEntry) {
-			// check size
-			if fileEntry.Size > g.config.SizeLimit {
-				return
-			}
-			wg.Add(1)
-			workers <- func() {
-				defer wg.Done()
-				// heavy process
+	go func() {
+		wg.Wait()
+		close(queue)
+	}()
 
-				// check contentType
-				ok, content := g.checkContentType(r, fileEntry)
-				if !ok {
-					// fmt.Printf("%s skipped. [%s] %s - %s\n", contentType, tag, addEntry.Blob, addEntry.Path)
-					return
+	return nil
+}
+
+func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
+	if len(addFiles) == 0 {
+		return
+	}
+
+	var wg sync.WaitGroup
+
+	for blob, file := range addFiles {
+		// check size
+		if file.Size > g.config.SizeLimit {
+			continue
+		}
+
+		wg.Add(1)
+		go func(blob string, file repo.GitFile) {
+			defer wg.Done()
+
+			for path, loc := range file.Locations {
+				// check contentType and retrive the file content
+				// !! this will be heavy process !!
+				contentType, content, err := g.parseContent(r, blob)
+				if err != nil {
+					log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
+					continue
+					// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
+				}
+
+				// @TODO Extract text from binary in the future?
+				if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
+					continue
+				}
+
+				text, encoding, err := readText(content)
+				if err != nil {
+					text = string(content)
+					encoding = "utf8"
 				}
 
 				fileIndex := indexer.FileIndex{
 					Metadata: indexer.Metadata{
-						Blob:         fileEntry.Blob,
+						Blob:         blob,
 						Organization: r.Organization,
 						Project:      r.Project,
 						Repository:   r.Repository,
-						Refs:         []string{branchName},
-						Path:         fileEntry.Path,
-						Ext:          indexer.GetExt(fileEntry.Path),
-						Size:         fileEntry.Size,
+						Branches:     loc.Branches,
+						Tags:         loc.Tags,
+						Path:         path,
+						Ext:          indexer.GetExt(path),
+						Encoding:     encoding,
+						Size:         file.Size,
 					},
-					Content: content,
+					Content: text,
 				}
+
+				bar.Total = bar.Total + 1
+
 				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 			}
-		})
-		if err != nil {
-			log.Printf("NotFound commitId: %s, %+v", latestCommitId, err)
-		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(queue)
-	}()
-
-	return nil
+		}(blob, file)
+	}
+	wg.Wait()
 }
 
-func (g *GitImporter) UpdateBranchIndex(queue chan indexer.FileIndexOperation, r *repo.GitRepo, branchName string, fromCommitId string, toCommitId string) error {
-
-	workers := util.GenWorkers(10)
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		err := r.GetDiffEntriesIterator(fromCommitId, toCommitId, func(fileEntry repo.FileEntry, status string) {
-			wg.Add(1)
-			workers <- func() {
-				defer wg.Done()
-				// heavy process
-
-				if status == "A" {
-					// check size
-					size, err := r.GetBlobSize(fileEntry.Blob)
-					if err != nil {
-						fmt.Println("Failed to read size. " + fileEntry.Path)
-						return
-					}
-					if size > g.config.SizeLimit {
-						return
-					}
-					fileEntry.Size = size
-
-					// check contentType
-					ok, content := g.checkContentType(r, fileEntry)
-					if !ok {
-						// fmt.Printf("%s skipped. [%s] %s - %s\n", contentType, tag, addEntry.Blob, addEntry.Path)
-						return
-					}
-
-					fileIndex := indexer.FileIndex{
-						Metadata: indexer.Metadata{
-							Blob:         fileEntry.Blob,
-							Organization: r.Organization,
-							Project:      r.Project,
-							Repository:   r.Repository,
-							Refs:         []string{branchName},
-							Path:         fileEntry.Path,
-							Ext:          indexer.GetExt(fileEntry.Path),
-							Size:         fileEntry.Size,
-						},
-						Content: content,
-					}
-					// Add index
-					queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
-
-				} else {
-					fileIndex := indexer.FileIndex{
-						Metadata: indexer.Metadata{
-							Blob:         fileEntry.Blob,
-							Organization: r.Organization,
-							Project:      r.Project,
-							Repository:   r.Repository,
-							Refs:         []string{branchName},
-							Path:         fileEntry.Path,
-							Ext:          indexer.GetExt(fileEntry.Path),
-							Size:         fileEntry.Size,
-						},
-					}
-					// Delete index
-					queue <- indexer.FileIndexOperation{Method: indexer.DELETE, FileIndex: fileIndex}
-				}
+// How to detect encoding
+// http://qiita.com/nobuhito/items/ff782f64e32f7ed95e43
+func readText(body []byte) (string, string, error) {
+	var f []byte
+	encodings := []string{"shift_jis", "utf8"}
+	var enc string
+	for i := range encodings {
+		enc = encodings[i]
+		if enc != "" {
+			ee, _ := charset.Lookup(enc)
+			if ee == nil {
+				continue
 			}
-		})
-		if err != nil {
-			log.Printf("NotFound diff: %s..%s %+v", fromCommitId, toCommitId, err)
+			var buf bytes.Buffer
+			ic := transform.NewWriter(&buf, ee.NewDecoder())
+			_, err := ic.Write(body)
+			if err != nil {
+				continue
+			}
+			err = ic.Close()
+			if err != nil {
+				continue
+			}
+			f = buf.Bytes()
+			break
 		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(queue)
-	}()
-
-	return nil
+	}
+	return string(f), enc, nil
 }
 
-func (g *GitImporter) checkContentType(repo *repo.GitRepo, fileEntry repo.FileEntry) (bool, string) {
-	contentType, content, err := repo.DetectBlobContentType(fileEntry.Blob)
+func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
+	for blob, file := range delFiles {
+		for path, loc := range file.Locations {
+			fileIndex := indexer.FileIndex{
+				Metadata: indexer.Metadata{
+					Blob:         blob,
+					Organization: r.Organization,
+					Project:      r.Project,
+					Repository:   r.Repository,
+					Branches:     loc.Branches,
+					Tags:         loc.Tags,
+					Path:         path,
+				},
+			}
+
+			bar.Total = bar.Total + 1
+
+			// Delete index
+			queue <- indexer.FileIndexOperation{Method: indexer.DELETE, FileIndex: fileIndex}
+		}
+	}
+}
+
+func (g *GitImporter) parseContent(repo *repo.GitRepo, blob string) (string, []byte, error) {
+	contentType, content, err := repo.DetectBlobContentType(blob)
 	if err != nil {
-		fmt.Println("Failed to read contentType. " + fileEntry.Path)
-		return false, ""
+		return "", nil, errors.Wrapf(err, "Failed to read contentType. %s", blob)
 	}
-
-	// @TODO Extract text from binary in the future?
-	if strings.HasPrefix(contentType, "text/") || contentType == "application/octet-stream" {
-		return true, string(content)
-	} else {
-		return false, ""
-	}
+	return contentType, content, nil
 }
 
-func getLoggingTag(repo *repo.GitRepo, branchName string, commitId string) string {
-	tag := fmt.Sprintf("%s:%s/%s (%s) %s", repo.Organization, repo.Project, repo.Repository, branchName, commitId)
+func getLoggingTag(repo *repo.GitRepo, ref string, commitId string) string {
+	tag := fmt.Sprintf("%s:%s/%s (%s) [%s]", repo.Organization, repo.Project, repo.Repository, ref, commitId)
 	return tag
-}
-
-func ContainsBranch(repoPath string, commitId string) ([]string, error) {
-	cmd := gitm.NewCommand("branch")
-	cmd.AddArguments("--contains", commitId)
-
-	stdout, err := cmd.RunInDir(repoPath)
-
-	// log.Println("--------------->", err)
-	if err != nil {
-		return nil, err
-	}
-	// log.Println("--------------->", stdout)
-
-	infos := strings.Split(stdout, "\n")
-	// log.Println(len(infos))
-	branches := make([]string, len(infos)-1)
-	for i, info := range infos[:len(infos)-1] {
-		branches[i] = info[2:]
-	}
-	return branches, nil
 }

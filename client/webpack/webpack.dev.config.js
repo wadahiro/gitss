@@ -6,6 +6,8 @@ var config = require('./webpack.base.config.js')
 config.profile = false
 config.devtool = 'inline-source-map'
 
+config.entry.unshift('react-hot-loader/patch')
+
 config.plugins = config.plugins.concat([
   new webpack.NoErrorsPlugin(),
   new webpack.DllReferencePlugin({

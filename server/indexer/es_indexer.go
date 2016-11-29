@@ -191,7 +191,7 @@ func (e *ESIndexer) BatchFileIndex(requestBatch []FileIndexOperation) error {
 	return nil
 }
 
-func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repository string, refs []string) error {
+func (e *ESIndexer) DeleteIndexByRefs(organization string, project string, repository string, branches []string, tags []string) error {
 	return nil
 }
 
@@ -210,7 +210,7 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 			return err
 		}
 
-		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Refs)
+		same := mergeRef(&fileIndex, requestFileIndex.Metadata.Branches, requestFileIndex.Metadata.Tags)
 
 		if same {
 			if e.debug {
@@ -255,6 +255,10 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
+func (e *ESIndexer) Count() (uint64, error) {
+	return 0, nil
+}
+
 func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams, page int) (SearchResult, error) {
 	start := time.Now()
 	result := e.search(query)
@@ -262,6 +266,10 @@ func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams, page in
 
 	result.Time = (end.Sub(start)).Seconds()
 	return result, nil
+}
+
+func (e *ESIndexer) Exists(requestFileIndex FileIndex) (bool, error) {
+	return false, nil
 }
 
 func (e *ESIndexer) search(query string) SearchResult {
@@ -273,9 +281,9 @@ func (e *ESIndexer) search(query string) SearchResult {
 		Query(q). // specify the query
 		Highlight(elastic.NewHighlight().Field("content").PreTags(PRE_TAG).PostTags(POST_TAG)).
 		Sort("path", true). // sort by "user" field, ascending
-		From(0).Size(10).            // take documents 0-9
-		Pretty(true).                // pretty print request and response JSON
-		Do()                         // execute
+		From(0).Size(10).   // take documents 0-9
+		Pretty(true).       // pretty print request and response JSON
+		Do()                // execute
 
 	if err != nil {
 		log.Println("error", err)
@@ -306,7 +314,7 @@ func (e *ESIndexer) search(query string) SearchResult {
 			}
 
 			// make preview
-			preview := gitRepo.FilterBlob(s.Blob, func(line string) bool {
+			preview := gitRepo.FilterBlob(s.Blob, s.Encoding, func(line string) bool {
 				for k, _ := range hitWordsSet {
 					if strings.Contains(line, k) {
 						log.Println(k)

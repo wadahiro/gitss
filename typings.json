@@ -1,7 +1,6 @@
 {
   "globalDependencies": {
-    "history": "registry:dt/history#1.8.0+20160316155526",
-    "lodash": "registry:dt/lodash#4.14.0+20160919145112",
+    "lodash": "registry:dt/lodash#4.14.0+20161110215204",
     "node": "registry:dt/node#6.0.0+20160709114037",
     "react": "registry:dt/react#0.14.0+20160927082313",
     "react-dom": "registry:dt/react-dom#0.14.0+20160412154040",

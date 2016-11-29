@@ -1,45 +1,64 @@
 import { Action, Dispatch } from 'redux';
+import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
-import { FilterParams } from '../reducers';
+import { RootState, FilterParams, Statistics } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
-    SetQuery |
+    GetStatistics |
+    GetBaseFilters |
     Search |
-    SearchFilter |
-    SearchStart
+    ResetFacets |
+    SearchStart |
+    ToggleSearchOptions
     ;
 
-export interface SetQuery extends Action {
-    type: 'SET_QUERY';
+export interface GetBaseFilters extends Action {
+    type: 'GET_BASE_FILTERS';
     payload: {
-        query: string;
-    }
+        organizations: string[];
+        projects: string[];
+        repositories: string[];
+        branches: string[];
+        tags: string[];
+    };
 }
 
-export function setQuery(dispatch: Dispatch<SetQuery>, query: string) {
-    dispatch({
-        type: 'SET_QUERY',
-        payload: {
-            query
+export function getBaseFilters(dispatch: Dispatch<Search>, organization: string, project: string, repository: string): void {
+    let urlPath = '';
+    if (organization) {
+        urlPath += `/${organization}`;
+        if (project) {
+            urlPath += `/${project}`;
+            if (repository) {
+                urlPath += `/${repository}`;
+            }
         }
-    });
+    }
+    WebApi.get(`filters${urlPath}`)
+        .then(res => {
+            // console.log(res);
+            dispatch({
+                type: 'GET_BASE_FILTERS',
+                payload: res
+            });
+        })
+        .catch(e => {
+            console.warn(e);
+        });
 }
 
 export interface Search extends Action {
     type: 'SEARCH';
     payload: {
         result: any;
-    }
+    };
 }
 
-export interface SearchFilter extends Action {
-    type: 'SEARCH_FILTER';
-    payload: {
-        result: any;
-    }
+export interface ResetFacets extends Action {
+    type: 'RESET_FACETS';
 }
 
 export interface SearchStart extends Action {
@@ -49,15 +68,48 @@ export interface SearchStart extends Action {
     };
 }
 
-export function search(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
-    _search('SEARCH', dispatch, query, filterParams, page);
+export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void {
+    // reset filters & current facets
+    dispatch({
+        type: 'RESET_FACETS'
+    });
+
+    const params = {
+        q: query
+    };
+    _triggerSearch(params, 0);
 }
 
-export function searchFilter(dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
-    _search('SEARCH_FILTER', dispatch, query, filterParams, page);
+export function triggerFilter(dispatch: Dispatch<Search>, filterParams: FilterParams, query: string, page: number = 0): void {
+    const params = {
+        ...filterParams,
+        q: query
+    };
+    _triggerSearch(params, page);
 }
 
-function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Search>, query: string, filterParams?: FilterParams, page: number = 0): void {
+export interface ToggleSearchOptions extends Action {
+    type: 'TOGGLE_SEARCH_OPTIONS';
+}
+
+export function toggleSearchOptions(dispatch: Dispatch<RootState>): void {
+    dispatch({
+        type: 'TOGGLE_SEARCH_OPTIONS'
+    });
+}
+
+function _makeQueryString(filterParams: FilterParams, query: string): string {
+    const params = {
+        ...filterParams,
+        q: query
+    };
+    return Object.keys(params).map(x => {
+        return `${x}=${params[x]}`;
+    }).join('&');
+}
+
+export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): void {
+
     dispatch({
         type: 'SEARCH_START',
         payload: {
@@ -65,16 +117,15 @@ function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Sear
         }
     });
 
-    const queryParams = Object.assign({}, filterParams, {
-        q: query,
-        i: page
-    });
+    const params = {
+        ...filterParams
+    };
 
-    WebApi.query('search', queryParams)
+    WebApi.query('search', params)
         .then(res => {
             // console.log(res);
             dispatch({
-                type: searchType,
+                type: 'SEARCH',
                 payload: {
                     result: res
                 }
@@ -83,6 +134,38 @@ function _search(searchType: 'SEARCH' | 'SEARCH_FILTER', dispatch: Dispatch<Sear
         .catch(e => {
             console.warn(e);
         });
+}
+
+export interface GetStatistics extends Action {
+    type: 'GET_STATISTICS';
+    payload: {
+        statistics: Statistics;
+    };
+}
+
+export function getStatistics(dispatch: Dispatch<RootState>): void {
+    WebApi.get('statistics')
+        .then(res => {
+            // console.log(res);
+            dispatch({
+                type: 'GET_STATISTICS',
+                payload: {
+                    statistics: res
+                }
+            });
+        })
+        .catch(e => {
+            console.warn(e);
+        });
+}
+
+function _triggerSearch(filterParams?: FilterParams, page: number = 0): void {
+    const queryParams = {
+        ...filterParams,
+        i: page
+    };
+
+    browserHistory.push(`/search?${WebApi.queryString(queryParams)}`);
 }
 
 export function undo() {

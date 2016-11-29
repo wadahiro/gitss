@@ -16,10 +16,28 @@ func TestGetFileEntries(t *testing.T) {
 	fmt.Println(len(entries))
 
 	if err != nil {
-		t.Errorf("Unexpected returnd err %+v", err)
+		t.Errorf("Unexpected returned err %+v", err)
 	}
 
 	if entries == nil {
-		t.Errorf("Unexpected returnd nil entries")
+		t.Errorf("Unexpected returned nil entries")
 	}
+}
+
+func TestGetFileEntriesMap(t *testing.T) {
+	r, _ := repo.NewGitRepo("o", "p", "r", "../../", &config.Config{})
+
+	entries, err := r.GetFileEntriesMap([]string{}, []string{})
+
+	fmt.Println("len(entries): ", len(entries))
+
+	if err != nil {
+		t.Errorf("Unexpected returned err %+v", err)
+	}
+
+	if entries == nil {
+		t.Errorf("Unexpected returned nil entries")
+	}
+
+	fmt.Println("dump: %v", entries)
 }

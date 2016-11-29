@@ -30,22 +30,24 @@ interface MenuLinkProps extends React.HTMLAttributes {
     isToggled?: boolean;
 }
 
-export function MenuLink(props: MenuLinkProps) {
-    let toggledStyle = {} as any;
-    if (props.isToggled) {
-        toggledStyle = {
-            borderLeft: '3px solid #d26911',
-            paddingLeft: 7,
-            backgroundColor: '#f5f7fa'
-        };
-    }
-    const linkStyle = Object.assign({}, toggledStyle, props.style);
+export class MenuLink extends React.PureComponent<MenuLinkProps, void> {
+    render() {
+        let toggledStyle = {} as any;
+        if (this.props.isToggled) {
+            toggledStyle = {
+                borderLeft: '3px solid #d26911',
+                paddingLeft: 7,
+                backgroundColor: '#f5f7fa'
+            };
+        }
+        const linkStyle = Object.assign({}, toggledStyle, this.props.style);
 
-    if (typeof props.count === 'number') {
-        return <BMenuLink {...props} style={linkStyle}>
-            <span style={{ paddingRight: 30 }}>{props.children}</span>
-            <Tag size='isSmall' style={{ float: 'right' }}>{props.count}</Tag>
-        </BMenuLink>;
+        if (typeof this.props.count === 'number') {
+            return <BMenuLink {...this.props} style={linkStyle}>
+                <span style={{ paddingRight: 30 }}>{this.props.children}</span>
+                <Tag size='isSmall' style={{ float: 'right' }}>{this.props.count}</Tag>
+            </BMenuLink>;
+        }
+        return <BMenuLink {...this.props} style={linkStyle}>{this.props.children}</BMenuLink>;
     }
-    return <BMenuLink {...props} style={linkStyle}>{props.children}</BMenuLink>;
 }

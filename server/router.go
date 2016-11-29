@@ -5,8 +5,8 @@ import (
 
 	"html/template"
 	"net/http"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/contrib/renders/multitemplate"
@@ -29,6 +29,7 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 
 	r.Use(func(c *gin.Context) {
 		c.Set("indexer", indexer)
+		c.Set("config", config)
 	})
 
 	r.Use(func(c *gin.Context) {
@@ -58,6 +59,11 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 	})
 
 	r.GET(apiPrefix+"search", controller.SearchIndex)
+	r.GET(apiPrefix+"statistics", controller.GetIndexStatistics)
+	r.GET(apiPrefix+"filters", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization/:project", controller.GetBaseFilters)
+	r.GET(apiPrefix+"filters/:organization/:project/:repository", controller.GetBaseFilters)
 
 	// react server-side rendering
 	// react := NewReact(
@@ -112,7 +118,7 @@ func (b *binaryFileSystem) Exists(prefix string, filepath string) bool {
 }
 
 func BinaryFileSystem(root string) *binaryFileSystem {
-	fs := &assetfs.AssetFS{Asset, AssetDir, root}
+	fs := &assetfs.AssetFS{Asset, AssetDir, AssetInfo, root}
 	return &binaryFileSystem{
 		fs,
 	}

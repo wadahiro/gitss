@@ -11,11 +11,15 @@ interface TagProps {
 }
 
 const defaultStyle = {
-    color: '#fff',
-    backgroundColor: '#3572b0'
+    color: '#666',
+    backgroundColor: '#eee'
 };
 
-export function Tag(props: TagProps) {
-    const style = Object.assign({}, defaultStyle, props.style);
-    return <BTag {...props} style={style}>{props.children}</BTag>
+export class Tag extends React.PureComponent<TagProps, void> {
+    render() {
+        const style = Object.assign({}, defaultStyle, this.props.style);
+        return <BTag {...this.props} style={style}>
+            {this.props.children}
+        </BTag>;
+    }
 }

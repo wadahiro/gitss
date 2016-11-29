@@ -24,6 +24,9 @@ import (
 	// "gopkg.in/src-d/go-git.v4"
 	// core "gopkg.in/src-d/go-git.v4/core"
 	"github.com/pkg/errors"
+
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
 )
 
 type GitRepoReader struct {
@@ -102,11 +105,104 @@ func (r *GitRepo) FetchAll() error {
 }
 
 func (r *GitRepo) GetBranches() ([]string, error) {
-	return r.gitmRepo.GetBranches()
+	b, err := r.gitmRepo.GetBranches()
+	if err != nil {
+		// No commit case
+		if err.Error() == "exit status 1" {
+			return []string{}, nil
+		}
+		return nil, errors.Wrapf(err, `Failed to get branch list. cmd: "git show-ref --heads"`)
+	}
+	return b, nil
+}
+
+func (r *GitRepo) GetTags() ([]string, error) {
+	t, err := r.gitmRepo.GetTags()
+	if err != nil {
+		return nil, errors.Wrapf(err, `Failed to get tag list. cmd: "git tag -l"`)
+	}
+	return t, nil
+}
+
+func (r *GitRepo) GetLatestCommitIdsMap(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (config.BrancheIndexedMap, config.TagIndexedMap, error) {
+	branches, err := r.GetBranches()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get branch list")
+	}
+
+	tags, err := r.GetTags()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get tag list")
+	}
+
+	// master -> refs/heads/master
+	b := []string{}
+	for _, branch := range branches {
+		if includeBranches == nil || len(includeBranches) == 0 || util.ContainsString(includeBranches, branch) {
+			if excludeBranches == nil || len(excludeBranches) == 0 || !util.ContainsString(excludeBranches, branch) {
+				b = append(b, gitm.BRANCH_PREFIX+branch)
+			}
+		}
+	}
+
+	// v1.0 => refs/heads/
+	for _, tag := range tags {
+		if includeTags == nil || len(includeTags) == 0 || util.ContainsString(includeTags, tag) {
+			if excludeTags == nil || len(excludeTags) == 0 || !util.ContainsString(excludeTags, tag) {
+				b = append(b, gitm.TAG_PREFIX+tag)
+			}
+		}
+	}
+
+	// get commitIds
+	stdout, err := gitm.NewCommand("show-ref", "--verify").AddArguments(b...).RunInDir(r.Path)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, `Failed to get branch commitIds. cmd: "show-ref --verify %s"`, strings.Join(b, " "))
+	}
+
+	resultBranches := make(config.BrancheIndexedMap)
+	resultTags := make(config.TagIndexedMap)
+
+	rows := strings.Split(stdout, "\n")
+	for _, row := range rows[:len(rows)-1] {
+		columns := strings.Split(row, " ")
+		if len(columns) != 2 {
+			return nil, nil, errors.Errorf(`Already removed Ref? "git show-ref --verify %s" response: %s`, strings.Join(b, " "), row)
+		}
+		if strings.Contains(columns[1], gitm.BRANCH_PREFIX) {
+			// refs/heads/master -> master
+			branch := columns[1][len(gitm.BRANCH_PREFIX):]
+			resultBranches[branch] = columns[0] // columns[0] is commitId
+		} else {
+			// refs/tags/v1.0 -> v1.0
+			tag := columns[1][len(gitm.TAG_PREFIX):]
+			resultTags[tag] = columns[0] // columns[0] is commitId
+		}
+	}
+
+	return resultBranches, resultTags, nil
 }
 
 func (r *GitRepo) GetBranchCommitID(name string) (string, error) {
 	return r.gitmRepo.GetBranchCommitID(name)
+}
+
+func (r *GitRepo) GetContainsBranches(commitId string) ([]string, error) {
+	cmd := gitm.NewCommand("branch")
+	cmd.AddArguments("--contains", commitId)
+
+	stdout, err := cmd.RunInDir(r.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := strings.Split(stdout, "\n")
+
+	branches := make([]string, len(infos)-1)
+	for i, info := range infos[:len(infos)-1] {
+		branches[i] = info[2:]
+	}
+	return branches, nil
 }
 
 func (r *GitRepo) GetBlobSize(blob string) (int64, error) {
@@ -127,42 +223,6 @@ func (r *GitRepo) GetBlobContent(blob string) ([]byte, error) {
 	return b, nil
 }
 
-// type ContentTypeWriter struct {
-// 	pos   int
-// 	bytes [512]byte
-// }
-
-// func (w *ContentTypeWriter) Write(p []byte) (n int, err error) {
-// 	end := w.pos + len(p)
-// 	if end > 512 {
-// 		end = 512
-// 	}
-
-// 	copy(w.bytes[w.pos:end], p)
-// 	w.pos = end
-
-// 	return len(p), nil
-// }
-
-// func (r *GitRepo) DetectBlobContentType2(blob string) (string, error) {
-// 	// Only the first 512 bytes are used to sniff the content type.
-// 	stdout := new(ContentTypeWriter)
-// 	stderr := new(bytes.Buffer)
-// 	err := gitm.NewCommand("cat-file", "-p", blob).RunInDirPipeline(r.Path, stdout, stderr)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	if r.config.Debug {
-// 		// fmt.Println("ContentType size:", len(string(stdout.bytes[:])))
-// 	}
-
-// 	// Always returns a valid content-type and "application/octet-stream" if no others seemed to match.
-// 	contentType := http.DetectContentType(stdout.bytes[:])
-
-// 	return contentType, nil
-// }
-
 func (r *GitRepo) DetectBlobContentType(blob string) (string, []byte, error) {
 	b, err := gitm.NewCommand("cat-file", "-p", blob).RunInDirBytes(r.Path)
 	if err != nil {
@@ -175,8 +235,17 @@ func (r *GitRepo) DetectBlobContentType(blob string) (string, []byte, error) {
 	return contentType, b, nil
 }
 
-func (r *GitRepo) FilterBlob(blobId string, filter func(line string) bool, before int, after int) []util.TextPreview {
+func (r *GitRepo) FilterBlob(blobId string, encoding string, filter func(line string) bool, before int, after int) []util.TextPreview {
 	b, _ := r.GetBlobContent(blobId)
+
+	if encoding != "" || encoding != "utf8" {
+		ee, _ := charset.Lookup(encoding)
+		var buf bytes.Buffer
+		ic := transform.NewWriter(&buf, ee.NewDecoder())
+		ic.Write(b)
+		b = buf.Bytes()
+	}
+
 	reader := strings.NewReader(string(b))
 
 	previews := util.FilterTextPreview(reader, filter, before, after)
@@ -194,7 +263,7 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 	// see https://git-scm.com/docs/git-ls-tree
 	s, err := gitm.NewCommand("ls-tree", "-r", "-l", "--abbrev=40", commitId).RunInDir(r.Path)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, `Faild to get file list. cmd: "git ls-tree -r -l --abbrev=40 %s"`, commitId)
 	}
 	s = strings.TrimRight(s, "\n")
 	rows := strings.Split(s, "\n")
@@ -224,11 +293,169 @@ func (r *GitRepo) GetFileEntriesIterator(commitId string, callback func(fileEntr
 func (r *GitRepo) GetFileEntries(commitId string) ([]FileEntry, error) {
 	list := []FileEntry{}
 
-	r.GetFileEntriesIterator(commitId, func(f FileEntry) {
+	err := r.GetFileEntriesIterator(commitId, func(f FileEntry) {
 		list = append(list, f)
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	return list, nil
+}
+
+type GitFile struct {
+	Locations map[string]GitFileLocation
+	Size      int64
+}
+
+type GitFileLocation struct {
+	Branches []string
+	Tags     []string
+}
+
+func (r *GitRepo) GetFileEntriesMapByRefs(includeBranches []string, includeTags []string, excludeBranches []string, excludeTags []string) (map[string]GitFile, error) {
+	branchesMap, tagsMap, err := r.GetLatestCommitIdsMap(includeBranches, includeTags, excludeBranches, excludeTags)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to get branches/tags commitIds.")
+	}
+	return r.GetFileEntriesMap(branchesMap, tagsMap)
+}
+
+func (r *GitRepo) GetFileEntriesMap(branchesMap map[string]string, tagsMap map[string]string) (map[string]GitFile, error) {
+	files := make(map[string]GitFile)
+
+	for branch, commitId := range branchesMap {
+		entries, err := r.GetFileEntries(commitId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get file entries of branch commit %s.", commitId)
+		}
+
+		for _, entry := range entries {
+			_, ok := files[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				files[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := files[entry.Blob].Locations[entry.Path]
+				if !ok {
+					files[entry.Blob].Locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				} else {
+					location := files[entry.Blob].Locations[entry.Path]
+					location.Branches = append(location.Branches, branch)
+					files[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+
+	for tag, commitId := range tagsMap {
+		entries, err := r.GetFileEntries(commitId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get file entries of tag commit %s.", commitId)
+		}
+
+		for _, entry := range entries {
+			_, ok := files[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+				files[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := files[entry.Blob].Locations[entry.Path]
+				if !ok {
+					files[entry.Blob].Locations[entry.Path] = GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+				} else {
+					location := files[entry.Blob].Locations[entry.Path]
+					location.Tags = append(location.Tags, tag)
+					files[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+	return files, nil
+}
+
+func (r *GitRepo) GetDiffFileEntriesMap(branchesMap map[string][2]string, tagsMap map[string][2]string) (map[string]GitFile, map[string]GitFile, error) {
+	addFiles := make(map[string]GitFile) // key is blob
+	delFiles := make(map[string]GitFile) // key is file path
+
+	err := r.processDiffMap(branchesMap, addFiles, delFiles, func(location *GitFileLocation, branch string) *GitFileLocation {
+		if location == nil {
+			return &GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+		}
+		location.Branches = append(location.Branches, branch)
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get diff file entries of branches")
+	}
+
+	err = r.processDiffMap(tagsMap, addFiles, delFiles, func(location *GitFileLocation, tag string) *GitFileLocation {
+		if location == nil {
+			return &GitFileLocation{Branches: []string{}, Tags: []string{tag}}
+		}
+		location.Tags = append(location.Tags, tag)
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "Failed to get diff file entries of tags")
+	}
+
+	return addFiles, delFiles, nil
+}
+
+func (r *GitRepo) processDiffMap(refsMap map[string][2]string, addFiles map[string]GitFile, delFiles map[string]GitFile, callback func(location *GitFileLocation, ref string) *GitFileLocation) error {
+	for ref, fromTo := range refsMap {
+		addEntries, delEntries, err := r.GetDiffList(fromTo[0], fromTo[1])
+		if err != nil {
+			return errors.Wrapf(err, "Failed to get diff file entries of ref %s %s..%s", ref, fromTo[0], fromTo[1])
+		}
+
+		for _, entry := range addEntries {
+			_, ok := addFiles[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = *callback(nil, ref)
+				// locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				addFiles[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := addFiles[entry.Blob].Locations[entry.Path]
+				if !ok {
+					addFiles[entry.Blob].Locations[entry.Path] = *callback(nil, ref)
+				} else {
+					location := addFiles[entry.Blob].Locations[entry.Path]
+					callback(&location, ref)
+					// location.Branches = append(location.Branches, branch)
+					addFiles[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+
+		for _, entry := range delEntries {
+			_, ok := delFiles[entry.Blob]
+			if !ok {
+				locations := make(map[string]GitFileLocation)
+				locations[entry.Path] = *callback(nil, ref)
+				// locations[entry.Path] = GitFileLocation{Branches: []string{branch}, Tags: []string{}}
+				delFiles[entry.Blob] = GitFile{Locations: locations, Size: entry.Size}
+			} else {
+				_, ok := delFiles[entry.Blob].Locations[entry.Path]
+				if !ok {
+					delFiles[entry.Blob].Locations[entry.Path] = *callback(nil, ref)
+				} else {
+					location := delFiles[entry.Blob].Locations[entry.Path]
+					callback(&location, ref)
+					// location.Branches = append(location.Branches, branch)
+					delFiles[entry.Blob].Locations[entry.Path] = location
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(fileEntry FileEntry, status string)) error {
@@ -302,76 +529,46 @@ func (r *GitRepo) GetDiffEntriesIterator(from string, to string, callback func(f
 }
 
 func (r *GitRepo) GetDiffList(from string, to string) ([]FileEntry, []FileEntry, error) {
-	stdout, err := gitm.NewCommand("diff", "--raw", "--abbrev=40", "-z", from, to).RunInDirTimeout(-1, r.Path)
+	addList := []FileEntry{}
+	delList := []FileEntry{}
+
+	err := r.GetDiffEntriesIterator(from, to, func(fileEntry FileEntry, status string) {
+		switch status {
+		case "A":
+			addList = append(addList, fileEntry)
+		case "D":
+			delList = append(delList, fileEntry)
+		}
+	})
+
 	if err != nil {
 		return nil, nil, err
 	}
 
-	addList := []FileEntry{}
-	delList := []FileEntry{}
+	return addList, delList, nil
+}
 
-	parts := bytes.Split(stdout, []byte{'\u0000'})
-
-	// fmt.Println(len(parts))
-
-	for index := 0; index < len(parts); index++ {
-		row := parts[index]
-		cols := bytes.Fields(row)
-
-		if len(cols) <= 1 {
-			continue
-		}
-
-		// fmt.Println("col", len(cols))
-
-		oldBlob := string(cols[2])
-		newBlob := string(cols[3])
-		status := string(cols[4])[0:1]
-
-		// fmt.Println(string(row))
-		// fmt.Println(oldBlob, newBlob, status)
-
-		// See 'Possible status letters' in https://git-scm.com/docs/git-diff
-		switch status {
-		case "A": // Add case
-			index++
-			path := string(parts[index])
-			addList = append(addList, FileEntry{Blob: newBlob, Path: path})
-
-		case "C": // Copy case
-			index = index + 2
-			toPath := string(parts[index])
-			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
-
-		case "D": // Delete case
-			index++
-			path := string(parts[index])
-			delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
-
-		case "M", "T": // Modify case and change in the type of the file case
-			index++
-			if oldBlob != newBlob {
-				path := string(parts[index])
-				delList = append(delList, FileEntry{Blob: oldBlob, Path: path})
-				addList = append(addList, FileEntry{Blob: newBlob, Path: path})
-			}
-
-		case "R": // Rename case
-			index++
-			fromPath := string(parts[index])
-			index++
-			toPath := string(parts[index])
-			delList = append(delList, FileEntry{Blob: oldBlob, Path: fromPath})
-			addList = append(addList, FileEntry{Blob: newBlob, Path: toPath})
-
-		case "U": // Unmerge case
-			continue
-		case "X": // Delete case
-			log.Println("unknown change type (most probably a git bug, please report it)")
-		}
+func (r *GitRepo) ExistsInCommit(commitId string, filePath string, blobId string) (bool, error) {
+	// see https://git-scm.com/docs/git-ls-tree
+	s, err := gitm.NewCommand("ls-tree", "--abbrev=40", commitId, "--", filePath).RunInDir(r.Path)
+	if err != nil {
+		return false, err
 	}
 
-	return addList, delList, nil
+	// log.Println(s)
+
+	result := strings.Split(s, "\n")
+	if len(result) < 2 {
+		// Not found case
+		return false, nil
+	}
+
+	columns := strings.Fields(result[0])
+	if len(columns) != 4 {
+		return false, errors.Errorf("Unexpected ls-tree response. command: git ls-tree -l --abbrev=40 %s -- %s response: %s", commitId, filePath, s)
+	}
+
+	return columns[2] == blobId, nil
 }
 
 func getGitRepoPath(GitDataDir string, organization string, project string, repoName string) string {

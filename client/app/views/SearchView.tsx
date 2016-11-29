@@ -3,200 +3,144 @@ import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
-import { Grid, Section, Row, Col } from '../components/Grid';
-import { Pagination, PageButton } from '../components/Pagination';
+import { NavBar } from '../components/NavBar';
+import { AppFooter } from '../components/Footer';
+import { Grid, Section, Row, Col, StickyFooterPage } from '../components/Grid';
+import { SearchSidePanel } from '../components/SearchSidePanel';
+import { SearchResultPanel } from '../components/SearchResultPanel';
+import { SideBar } from '../components/SideBar';
 import { ExtFacet } from '../components/ExtFacet';
 import { FacetPanel } from '../components/FacetPanel';
 import { FullRefsFacet } from '../components/FullRefsFacet';
 import { Facets } from '../components/Facets';
-import { FileContent } from '../components/FileContent';
-import { RootState, SearchResult, SearchFacets, FilterParams } from '../reducers';
+import { RootState, SearchResult, SearchFacets, BaseFilterParams, BaseFilterOptions, FilterParams, FacetKey } from '../reducers';
 import * as Actions from '../actions';
 
-const MDSpinner = require('react-md-spinner').default;
-
 interface Props {
-    dispatch?: Dispatch<Action>;
-    loading: boolean;
     query: string;
+    loading: boolean;
+    showOptions: boolean;
     filterParams: FilterParams;
     result: SearchResult;
     facets: SearchFacets;
+    // react-redux inject props
+    dispatch?: Dispatch<Action>;
+    // react-router inject props
+    location?: any;
+    history?: any;
+    params?: BaseFilterParams;
+    // lazy fetch
+    baseFilterParams?: BaseFilterParams;
+    baseFilterOptions?: BaseFilterOptions;
 }
 
 class SearchView extends React.Component<Props, void> {
-    handleExtToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('x', this.props.filterParams, term));
-    };
+    unlisten = null;
 
-    handleOrganizationToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('o', this.props.filterParams, term));
-    };
+    componentWillMount() {
+        let count = 0;
+        this.unlisten = this.props.history.listen((arg1, { location }) => {
+            if (location.query.q !== undefined && location.query.q !== '') {
+                Actions.search(this.props.dispatch, location.query);
+            }
+        });
+    }
 
-    handleProjectToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('p', this.props.filterParams, term));
-    };
+    componentWillUnmount() {
+        this.unlisten();
+    }
 
-    handleRepositoryToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('r', this.props.filterParams, term));
-    };
-
-    handleRefsToggle = (term: string) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, mergeTerm('b', this.props.filterParams, term));
-    };
-
-    showPage = (page: number) => {
-        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, page);
-    };
-
-    next = () => {
-        let next = this.props.result.current + 1;
-        const pageSize = Math.ceil(this.props.result.size / this.props.result.limit) || 0;
-        if (next >= pageSize) {
-            next = pageSize - 1;
+    handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.keyCode === 13) {
+            Actions.triggerSearch(this.props.dispatch, e.target['value']);
         }
-        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, next);
     };
 
-    prev = () => {
-        let next = this.props.result.current - 1;
-        if (next < 0) {
-            next = 0;
-        }
-        Actions.searchFilter(this.props.dispatch, this.props.query, this.props.filterParams, next);
+    handleFacetToggle = (filterParams: FilterParams) => {
+        Actions.triggerFilter(this.props.dispatch, filterParams, this.props.query);
+    };
+
+    handlePageChange = (page: number) => {
+        Actions.triggerFilter(this.props.dispatch, this.props.filterParams, this.props.query, page);
+    };
+
+    handleSideBarToggle = () => {
+        Actions.toggleSearchOptions(this.props.dispatch);
     };
 
     render() {
-        const { loading, filterParams, result, facets } = this.props;
-
-        const pageSize = Math.ceil(result.size / result.limit) || 0;
-        const pageButtons = [];
-
-        let start = result.current - 2;
-        let end = result.current + 2;
-        const lastIndex = pageSize - 1;
-
-        if (start < 0) {
-            end += -start;
-            start = 0;
-        }
-        if (end > lastIndex) {
-            if (start > 0) {
-                start -= (end - lastIndex);
-                if (start < 0) {
-                    start = 0;
-                }
-            }
-            end = lastIndex;
-        }
-
-        if (start > 0) {
-            pageButtons.push((
-                <li>
-                    <PageButton onClick={this.showPage.bind(null, 0)}>1</PageButton>
-                </li>
-            ));
-            pageButtons.push(<li>...</li>);
-        }
-
-        for (let index = start; index <= end; index++) {
-            pageButtons.push((
-                <li>
-                    <PageButton onClick={this.showPage.bind(null, index)} isActive={index === result.current}>{index + 1}</PageButton>
-                </li>
-            ));
-        }
-
-        if (end < lastIndex) {
-            pageButtons.push(<li>...</li>);
-            pageButtons.push((
-                <li>
-                    <PageButton onClick={this.showPage.bind(null, lastIndex)}>{lastIndex + 1}</PageButton>
-                </li>
-            ));
-        }
+        const { loading, showOptions, query, filterParams, result, facets,
+            baseFilterParams, baseFilterOptions } = this.props;
 
         return (
-            <Section>
-                <Row>
-                    <Col size='is3'>
-                        <FacetPanel title='File extensions'
-                            facet={facets.facets['ext']}
-                            emptyKeyword='/noext/'
-                            emptyLabel='(No extension)'
-                            selected={filterParams.x}
-                            onToggle={this.handleExtToggle} />
-                        <FacetPanel title='Organization'
-                            facet={facets.facets['organization']}
-                            selected={filterParams.o}
-                            onToggle={this.handleOrganizationToggle} />
-                        <FacetPanel title='Project'
-                            facet={facets.facets['project']}
-                            selected={filterParams.p}
-                            onToggle={this.handleProjectToggle} />
-                        <FacetPanel title='Repository'
-                            facet={facets.facets['repository']}
-                            selected={filterParams.r}
-                            onToggle={this.handleRepositoryToggle} />
-                        <FacetPanel title='Branches'
-                            facet={facets.facets['refs']}
-                            selected={filterParams.b}
-                            onToggle={this.handleRefsToggle} />
-
+            <div>
+                <NavBar onKeyDown={this.handleKeyDown}
+                    showSideBarToggle={!showOptions}
+                    onSideBarToggleClick={this.handleSideBarToggle}
+                    loading={this.props.loading}
+                    result={this.props.result}
+                    query={query}
+                    />
+                <Row isGapless style={{ marginTop: 88 }}>
+                    <Col size='isNarrow'>
+                        <div style={{ width: 280 }}>
+                            <SearchSidePanel style={sidePanelStyle}
+                                facets={facets}
+                                searchParams={filterParams}
+                                onToggle={this.handleFacetToggle} />
+                        </div>
                     </Col>
-                    <Col size='is9'>
-                        <Grid>
-                            {result.hits.map(x => {
-                                return (
-                                    <Row key={x.blob}>
-                                        <Col size='is12'>
-                                            <FileContent metadata={x} keyword={x.keyword} preview={x.preview} />
-                                        </Col>
-                                    </Row>
-                                );
-                            })}
-                            {result && result.size > 10 &&
-                                <Row>
-                                    <Col size='is12'>
-                                        <Pagination>
-                                            <PageButton onClick={this.prev}>Previous</PageButton>
-                                            <PageButton onClick={this.next}>Next page</PageButton>
-                                            <ul>
-                                                {pageButtons}
-                                            </ul>
-                                        </Pagination>
-                                    </Col>
-                                </Row>
-                            }
-                        </Grid>
+                    <Col>
+                        <div style={{ paddingTop: 20 }}>
+                            <StickyFooterPage footer={<AppFooter />}>
+                                <SearchResultPanel style={resultPanelStyle}
+                                    result={result}
+                                    onPageChange={this.handlePageChange} />
+                            </StickyFooterPage>
+                        </div>
                     </Col>
                 </Row>
-            </Section>
+            </div>
         );
     }
 }
 
-function mergeTerm(key: string, params: FilterParams, term: string) {
-    const target = params[key] || [];
-    let terms;
-    if (target.find(x => x === term)) {
-        terms = target.filter(x => x !== term);
-    } else {
-        terms = target.concat(term);
-    }
-    return Object.assign({}, params, {
-        [key]: terms
-    });
-}
+const sidePanelStyle = {
+    position: 'fixed',
+    height: 'calc(100vh - 108px)',
+    overflowY: 'auto',
+    backgroundColor: 'white',
+    borderRight: '1px solid rgb(204, 204, 204)',
+    // top: 100,
+    // left: 0,
+    width: 280,
+    padding: 10
+};
+
+const resultPanelStyle = {
+    flex: '1 1',
+    paddingLeft: 50,
+    paddingRight: 30,
+    paddingBottom: 50
+};
 
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
         loading: state.app.present.loading,
-        query: state.app.present.query,
-        filterParams: state.app.present.filterParams,
+        showOptions: state.app.present.showSearchOptions,
+        query: props.location.query['q'] !== undefined ? props.location.query['q'] : '',
+        filterParams: props.location.query,
         result: state.app.present.result,
-        facets: state.app.present.facets
+        facets: state.app.present.facets,
+
+        // Convert react-router injected params
+        baseFilterParams: toBaseFilterParams(props.params),
+        baseFilterOptions: state.app.present.baseFilterOptions
     };
+}
+
+function toBaseFilterParams(params: Object): BaseFilterParams {
+    return params;
 }
 
 const SearchViewContainer = connect(

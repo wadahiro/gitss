@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type BitBucketResponse struct {
@@ -84,7 +86,7 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 	projects := make(map[string]*ProjectSetting)
 	start := 0
 
-	log.Println("Fetching projects from bitbucket server: ", b.Scm["url"])
+	log.Println("Fetching repositories from bitbucket server: ", b.Scm["url"])
 
 	for {
 		client := &http.Client{}
@@ -92,7 +94,7 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 		req.SetBasicAuth(b.Scm["user"], b.Scm["password"])
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Println(err)
+			return errors.Wrapf(err, "Failed to fetch repositories from bitbucket server: %s", b.Scm["url"])
 		}
 		bodyText, err := ioutil.ReadAll(resp.Body)
 
