@@ -3,10 +3,11 @@ import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
-import { RootState, BaseFilterParams, FilterParams } from '../reducers';
+import { RootState, FilterParams, Indexed } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
+    GetIndexedList |
     GetBaseFilters |
     Search |
     ResetFacets |
@@ -24,8 +25,6 @@ export interface GetBaseFilters extends Action {
         tags: string[];
     };
 }
-
-type BaseFiltersType = 'organization' | 'project' | 'repository' | 'branch' | 'tag';
 
 export function getBaseFilters(dispatch: Dispatch<Search>, organization: string, project: string, repository: string): void {
     let urlPath = '';
@@ -69,7 +68,7 @@ export interface SearchStart extends Action {
     };
 }
 
-export function triggerSearch(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, query?: string): void {
+export function triggerSearch(dispatch: Dispatch<Search>, query?: string): void {
     // reset filters & current facets
     dispatch({
         type: 'RESET_FACETS'
@@ -78,19 +77,15 @@ export function triggerSearch(dispatch: Dispatch<Search>, baseFilterParmas: Base
     const params = {
         q: query
     };
-    _triggerSearch(baseFilterParmas, params, 0);
+    _triggerSearch(params, 0);
 }
 
-export function triggerFilter(dispatch: Dispatch<Search>, baseFilterParmas: BaseFilterParams, filterParams: FilterParams, query: string, page: number = 0): void {
+export function triggerFilter(dispatch: Dispatch<Search>, filterParams: FilterParams, query: string, page: number = 0): void {
     const params = {
         ...filterParams,
         q: query
     };
-    _triggerSearch(baseFilterParmas, params, page);
-}
-
-export function triggerBaseFilter(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterParams, filterParams: FilterParams, query: string): void {
-    browserHistory.push(`${_makeBaseFilterPath(baseFilterParams)}?${_makeQueryString(filterParams, query)}`);
+    _triggerSearch(params, page);
 }
 
 export interface ToggleSearchOptions extends Action {
@@ -113,26 +108,7 @@ function _makeQueryString(filterParams: FilterParams, query: string): string {
     }).join('&');
 }
 
-function _makeBaseFilterPath(baseFilterParams: BaseFilterParams) {
-    let urlPath = '/';
-    if (baseFilterParams.organization) {
-        urlPath += `s/${baseFilterParams.organization}`;
-        if (baseFilterParams.project) {
-            urlPath += `/${baseFilterParams.project}`;
-            if (baseFilterParams.repository) {
-                urlPath += `/${baseFilterParams.repository}`;
-                if (baseFilterParams.branch) {
-                    urlPath += `/branches/${baseFilterParams.branch}`;
-                } else if (baseFilterParams.tag) {
-                    urlPath += `/tags/${baseFilterParams.tag}`;
-                }
-            }
-        }
-    }
-    return urlPath;
-}
-
-export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterParams = {}, filterParams: FilterParams): void {
+export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): void {
 
     dispatch({
         type: 'SEARCH_START',
@@ -142,8 +118,7 @@ export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterP
     });
 
     const params = {
-        ...filterParams,
-        ..._toShortKeyParams(baseFilterParams)
+        ...filterParams
     };
 
     WebApi.query('search', params)
@@ -161,7 +136,28 @@ export function search(dispatch: Dispatch<Search>, baseFilterParams: BaseFilterP
         });
 }
 
-function _triggerSearch(baseFilterParams: BaseFilterParams, filterParams?: FilterParams, page: number = 0): void {
+export interface GetIndexedList extends Action {
+    type: 'GET_INDEXED_LIST';
+    payload: {
+        result: Indexed[];
+    };
+}
+
+export function getIndexedList(dispatch: Dispatch<RootState>): void {
+    WebApi.get('indexed')
+        .then((res: { result: Indexed[] }) => {
+            // console.log(res);
+            dispatch({
+                type: 'GET_INDEXED_LIST',
+                payload: res
+            });
+        })
+        .catch(e => {
+            console.warn(e);
+        });
+}
+
+function _triggerSearch(filterParams?: FilterParams, page: number = 0): void {
     const queryParams = {
         ...filterParams,
         i: page
@@ -169,19 +165,6 @@ function _triggerSearch(baseFilterParams: BaseFilterParams, filterParams?: Filte
 
     browserHistory.push(`/search?${WebApi.queryString(queryParams)}`);
 }
-
-function _toShortKeyParams(baseFilterParams: BaseFilterParams) {
-    const params = Object.keys(baseFilterParams).reduce((s, x) => {
-        if (typeof baseFilterParams[x] === 'object') {
-            s[baseFilterParams[x].name[0]] = [baseFilterParams[x].value];
-        } else {
-            s[x[0]] = [baseFilterParams[x]];
-        }
-        return s;
-    }, {});
-    return params;
-}
-
 
 export function undo() {
     return ActionCreators.undo();

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 	// "path"
 	"path/filepath"
 	"strings"
@@ -411,6 +412,7 @@ func (c *Config) writeSetting(organization string) error {
 }
 
 type Indexed struct {
+	LastUpdated  string            `json:"lastUpdated"`
 	Organization string            `json:"organization"`
 	Project      string            `json:"project"`
 	Repository   string            `json:"repository"`
@@ -421,7 +423,12 @@ type Indexed struct {
 type BrancheIndexedMap map[string]string
 type TagIndexedMap map[string]string
 
+const DATE_LAYOUT = "2006-01-02 15:04:05 JST"
+
 func (c *Config) writeIndexed(indexed Indexed) error {
+	t := time.Now()
+	indexed.LastUpdated = t.Format(DATE_LAYOUT)
+
 	content, _ := json.MarshalIndent(indexed, "", "  ")
 	fileName := c.getIndexedFilePath(indexed.Organization, indexed.Project, indexed.Repository)
 

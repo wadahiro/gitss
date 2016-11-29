@@ -29,7 +29,19 @@ export interface AppState {
     facets: SearchFacets;
     result: SearchResult;
 
+    indexedList: Indexed[]
+
     baseFilterOptions: BaseFilterOptions;
+}
+
+export interface Indexed extends RepositoryMetadata {
+    lastUpdated: string; // YYYY-MM-DD HH:mm:dd Z
+    branches: {
+        [index: string]: string;
+    };
+    tags: {
+        [index: string]: string;
+    };
 }
 
 export interface BaseFilterParams {
@@ -104,7 +116,7 @@ export interface Preview {
     hits: number[];
 }
 
-export interface FileMetadata {
+export interface FileMetadata extends RepositoryMetadata {
     blob: string;
     organization: string;
     project: string;
@@ -113,6 +125,12 @@ export interface FileMetadata {
     tags: string[];
     path: string;
     ext: string;
+}
+
+export interface RepositoryMetadata {
+    organization: string;
+    project: string;
+    repository: string;
 }
 
 export type FacetKey = 'ext' | 'organization' | 'project' | 'repository' | 'branches' | 'tags';
@@ -181,7 +199,8 @@ function init(): AppState {
             repositories: [],
             branches: [],
             tags: []
-        }
+        },
+        indexedList: []
     };
 }
 
@@ -195,6 +214,12 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
             return {
                 ...state,
                 showSearchOptions: !state.showSearchOptions
+            };
+
+        case 'GET_INDEXED_LIST':
+            return {
+                ...state,
+                indexedList: action.payload.result
             };
 
         case 'GET_BASE_FILTERS':

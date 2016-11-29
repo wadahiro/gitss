@@ -3744,6 +3744,10 @@ react-select@^1.0.0-rc.2:
     classnames "^2.2.4"
     react-input-autosize "^1.1.0"
 
+react-sticky@^5.0.5:
+  version "5.0.5"
+  resolved "https://registry.yarnpkg.com/react-sticky/-/react-sticky-5.0.5.tgz#995871273f8a001fa4d462d3b96f381ee54b2649"
+
 react@^15.3.2:
   version "15.4.0"
   resolved "https://registry.yarnpkg.com/react/-/react-15.4.0.tgz#736c1c7c542e8088127106e1f450b010f86d172b"

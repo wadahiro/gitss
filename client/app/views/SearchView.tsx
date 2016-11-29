@@ -39,15 +39,10 @@ class SearchView extends React.Component<Props, void> {
 
     componentWillMount() {
         let count = 0;
-        this.unlisten = this.props.history.listen((arg1, {location, params}) => {
+        this.unlisten = this.props.history.listen((arg1, { location }) => {
             if (location.query.q !== undefined && location.query.q !== '') {
-                Actions.search(this.props.dispatch, params, location.query);
+                Actions.search(this.props.dispatch, location.query);
             }
-
-            Actions.getBaseFilters(this.props.dispatch,
-                params.organization,
-                params.project,
-                params.repository);
         });
     }
 
@@ -57,20 +52,16 @@ class SearchView extends React.Component<Props, void> {
 
     handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.keyCode === 13) {
-            Actions.triggerSearch(this.props.dispatch, this.props.baseFilterParams, e.target['value']);
+            Actions.triggerSearch(this.props.dispatch, e.target['value']);
         }
     };
 
     handleFacetToggle = (filterParams: FilterParams) => {
-        Actions.triggerFilter(this.props.dispatch, this.props.baseFilterParams, filterParams, this.props.query);
+        Actions.triggerFilter(this.props.dispatch, filterParams, this.props.query);
     };
 
     handlePageChange = (page: number) => {
-        Actions.triggerFilter(this.props.dispatch, this.props.baseFilterParams, this.props.filterParams, this.props.query, page);
-    };
-
-    handleBaseFilterChange = (values: BaseFilterParams) => {
-        Actions.triggerBaseFilter(this.props.dispatch, values, this.props.filterParams, this.props.query);
+        Actions.triggerFilter(this.props.dispatch, this.props.filterParams, this.props.query, page);
     };
 
     handleSideBarToggle = () => {
@@ -89,9 +80,6 @@ class SearchView extends React.Component<Props, void> {
                     loading={this.props.loading}
                     result={this.props.result}
                     query={query}
-                    baseFilterParams={baseFilterParams}
-                    baseFilterOptions={baseFilterOptions}
-                    onBaseFilterChange={this.handleBaseFilterChange}
                     />
                 <Row isGapless style={{ marginTop: 88 }}>
                     <Col size='isNarrow'>

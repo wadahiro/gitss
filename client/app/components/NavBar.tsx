@@ -20,10 +20,6 @@ interface NavProps {
     loading: boolean;
     result: SearchResult;
     query?: string;
-
-    onBaseFilterChange: (value: BaseFilterParams) => void;
-    baseFilterParams: BaseFilterParams;
-    baseFilterOptions: BaseFilterOptions;
 }
 
 interface NavState {
@@ -84,8 +80,7 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
             opacity: .75
         };
 
-        const { showSideBarToggle, onSideBarToggleClick,
-            baseFilterParams, baseFilterOptions } = this.props;
+        const { showSideBarToggle, onSideBarToggleClick } = this.props;
 
         // <img src="./imgs/title.png" alt="GitSS" width='400'/>
         return (

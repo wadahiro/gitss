@@ -55,6 +55,7 @@
     "react-redux": "^4.4.5",
     "react-router": "^2.8.1",
     "react-select": "^1.0.0-rc.2",
+    "react-sticky": "^5.0.5",
     "redux": "^3.6.0",
     "redux-undo": "^0.6.1",
     "reselect": "^2.5.4",

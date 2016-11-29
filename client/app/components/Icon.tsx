@@ -4,15 +4,16 @@ import { Size } from './Modifiers';
 
 const BIcon = require('re-bulma/lib/elements/icon').default;
 
-interface IconProps extends React.DOMAttributes {
+interface IconProps {
     icon: string;
     onClick?: () => void;
+    size?: Size;
 }
 
 export class Icon extends React.PureComponent<IconProps, void> {
     render() {
         const style = this.props.onClick ? { cursor: 'pointer' } : {};
-        return <i style={style} className={`fa fa-${this.props.icon}`} onClick={this.props.onClick} />;
+        return <BIcon {...this.props} style={style} className={`fa fa-${this.props.icon}`} />;
     }
 }
 

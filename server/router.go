@@ -59,7 +59,8 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 	})
 
 	r.GET(apiPrefix+"search", controller.SearchIndex)
-	r.GET(apiPrefix+"filters/", controller.GetBaseFilters)
+	r.GET(apiPrefix+"indexed", controller.GetIndexedList)
+	r.GET(apiPrefix+"filters", controller.GetBaseFilters)
 	r.GET(apiPrefix+"filters/:organization", controller.GetBaseFilters)
 	r.GET(apiPrefix+"filters/:organization/:project", controller.GetBaseFilters)
 	r.GET(apiPrefix+"filters/:organization/:project/:repository", controller.GetBaseFilters)

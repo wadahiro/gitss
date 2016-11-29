@@ -4,6 +4,7 @@ const BContainer = require('re-bulma/lib/layout/container').default;
 const Columns = require('re-bulma/lib/grid/columns').default;
 const Column = require('re-bulma/lib/grid/column').default;
 const BSection = require('re-bulma/lib/layout/section').default;
+const BContent = require('re-bulma/lib/elements/content').default;
 
 export function Container(props) {
     return (
@@ -104,6 +105,12 @@ export function TCol(props: TColProps) {
         <div style={style}>
             {props.children}
         </div>
+    );
+}
+
+export function Content(props) {
+    return (
+        <BContent {...props} />
     );
 }
 
