@@ -29,12 +29,24 @@ export interface AppState {
     facets: SearchFacets;
     result: SearchResult;
 
-    indexedList: Indexed[]
+    statistics: Maybe<Statistics>;
 
     baseFilterOptions: BaseFilterOptions;
 }
 
-export interface Indexed extends RepositoryMetadata {
+export interface Statistics {
+    count: {
+        organization: number;
+        project: number;
+        repository: number;
+        branch: number;
+        tag: number;
+        document: number;
+    };
+    indexes: Indexed[];
+}
+
+interface Indexed extends RepositoryMetadata {
     lastUpdated: string; // YYYY-MM-DD HH:mm:dd Z
     branches: {
         [index: string]: string;
@@ -200,7 +212,7 @@ function init(): AppState {
             branches: [],
             tags: []
         },
-        indexedList: []
+        statistics: Maybe.nothing()
     };
 }
 
@@ -208,7 +220,7 @@ function toOptions(array: string[] = []): Option[] {
     return array.map(x => ({ label: x, value: x }));
 }
 
-export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
+export const appStateReducer = (state: AppState = init(), action: Actions.Actions): AppState => {
     switch (action.type) {
         case 'TOGGLE_SEARCH_OPTIONS':
             return {
@@ -216,10 +228,10 @@ export const appStateReducer = (state: AppState = init(), action: Actions.Action
                 showSearchOptions: !state.showSearchOptions
             };
 
-        case 'GET_INDEXED_LIST':
+        case 'GET_STATISTICS':
             return {
                 ...state,
-                indexedList: action.payload.result
+                statistics: Maybe.just(action.payload.statistics)
             };
 
         case 'GET_BASE_FILTERS':

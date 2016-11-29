@@ -16,6 +16,7 @@ type Indexer interface {
 	BatchFileIndex(operations []FileIndexOperation) error
 	DeleteIndexByRefs(organization string, project string, repository string, branches []string, tags []string) error
 
+	Count() (uint64, error)
 	SearchQuery(query string, filters FilterParams, page int) (SearchResult, error)
 
 	Exists(requestFileIndex FileIndex) (bool, error)

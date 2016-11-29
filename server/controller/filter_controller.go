@@ -80,10 +80,10 @@ func GetBaseFilters(c *gin.Context) {
 
 		c.JSON(200, FilterResult{
 			Organizations: []string{organization},
-			Projects:     []string{project},
-			Repositories: []string{repository},
-			Branches:     branches,
-			Tags:         tags,
+			Projects:      []string{project},
+			Repositories:  []string{repository},
+			Branches:      branches,
+			Tags:          tags,
 		})
 		return
 	}

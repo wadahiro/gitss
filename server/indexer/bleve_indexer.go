@@ -434,6 +434,16 @@ func (b *BleveIndexer) _delete(client bleve.Index, docID string, batch *bleve.Ba
 	return nil
 }
 
+func (b *BleveIndexer) Count() (uint64, error) {
+	client, err := b.open()
+	if err != nil {
+		return 0, err
+	}
+	defer client.Close()
+
+	return client.DocCount()
+}
+
 func (b *BleveIndexer) SearchQuery(query string, filterParams FilterParams, page int) (SearchResult, error) {
 	client, err := b.open()
 	if err != nil {

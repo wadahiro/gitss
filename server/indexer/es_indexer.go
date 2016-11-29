@@ -255,6 +255,10 @@ func (e *ESIndexer) UpsertFileIndex(requestFileIndex FileIndex) error {
 	return nil
 }
 
+func (e *ESIndexer) Count() (uint64, error) {
+	return 0, nil
+}
+
 func (e *ESIndexer) SearchQuery(query string, filterParams FilterParams, page int) (SearchResult, error) {
 	start := time.Now()
 	result := e.search(query)

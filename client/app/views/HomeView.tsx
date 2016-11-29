@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Maybe } from 'tsmonad';
 import { Dispatch, Action } from 'redux';
 import { connect } from 'react-redux';
 import { Link, RouteComponentProps } from 'react-router';
@@ -13,14 +14,14 @@ import { MediaPanel } from '../components/Media';
 import { HeadingNav } from '../components/Level';
 import { RefTag } from '../components/RefTag';
 
-import { RootState, SearchResult, SearchFacets, BaseFilterParams, BaseFilterOptions, FilterParams, FacetKey, Indexed } from '../reducers';
+import { RootState, SearchResult, SearchFacets, BaseFilterParams, BaseFilterOptions, FilterParams, FacetKey, Statistics } from '../reducers';
 import * as Actions from '../actions';
 
 interface Params {
 }
 
 interface Props extends RouteComponentProps<Params, void> {
-    indexedList: Indexed[];
+    statistics: Maybe<Statistics>;
     // react-redux inject props
     dispatch?: Dispatch<Action>;
 }
@@ -37,7 +38,7 @@ class HomeView extends React.PureComponent<Props, void> {
     };
 
     componentWillMount() {
-        Actions.getIndexedList(this.props.dispatch);
+        Actions.getStatistics(this.props.dispatch);
     }
 
     render() {
@@ -45,11 +46,14 @@ class HomeView extends React.PureComponent<Props, void> {
             <StickyContainer>
                 <StickyFooterPage footer={<AppFooter />}>
                     <Section>
-                        <IndexedSummary indexedList={this.props.indexedList} />
+                        {this.props.statistics.caseOf({
+                            just: statistics => <StatisticsNav statistics={statistics} />,
+                            nothing: () => <StatisticsNav loading />
+                        })}
                     </Section>
                     <Sticky stickyStyle={{ zIndex: 1 }}>
                         <Hero color='isPrimary'>
-                            <HeroBody>
+                            <HeroBody style={{ padding: '20px 20px' }}>
                                 <Container>
                                     <Row>
                                         <Col size='is3'>
@@ -68,6 +72,8 @@ class HomeView extends React.PureComponent<Props, void> {
                                                 onKeyDown={this.handleKeyDown}
                                                 />
                                         </Col>
+                                        <Col size='is3'>
+                                        </Col>
                                     </Row>
                                 </Container>
                             </HeroBody>
@@ -75,37 +81,42 @@ class HomeView extends React.PureComponent<Props, void> {
                     </Sticky>
                     <Section>
                         <Container>
-                            {this.props.indexedList.map(x => {
-                                return (
-                                    <MediaPanel key={x.lastUpdated} icon='feed'>
-                                        <p>
-                                            <h4>{x.lastUpdated}</h4>
-                                            <h5><strong>{x.organization} : {x.project}/{x.repository}</strong> was synced.</h5>
+                            {this.props.statistics.caseOf({
+                                just: statistics => {
+                                    return statistics.indexes.map(x => {
+                                        return (
+                                            <MediaPanel key={x.lastUpdated} icon='feed'>
+                                                <p>
+                                                    <h4>{x.lastUpdated}</h4>
+                                                    <h5><strong>{x.organization} : {x.project}/{x.repository}</strong> was synced.</h5>
 
-                                            <h6>Branches:</h6>
-                                            <p>
-                                                {Object.keys(x.branches).map(k => {
-                                                    return (
-                                                        <RefTag key={k} type='branch'>{k}</RefTag>
-                                                    );
-                                                })}
-                                            </p>
+                                                    <h6>Branches:</h6>
+                                                    <p>
+                                                        {Object.keys(x.branches).map(k => {
+                                                            return (
+                                                                <RefTag key={k} type='branch'>{k}</RefTag>
+                                                            );
+                                                        })}
+                                                    </p>
 
-                                            <h6>Tags:</h6>
-                                            <p>
-                                                {Object.keys(x.tags).length === 0 ?
-                                                    <span>Nothing.</span>
-                                                    :
-                                                    Object.keys(x.tags).map(k => {
-                                                        return (
-                                                            <RefTag key={k} type='tag'>{k}</RefTag>
-                                                        );
-                                                    })
-                                                }
-                                            </p>
-                                        </p>
-                                    </MediaPanel>
-                                );
+                                                    <h6>Tags:</h6>
+                                                    <p>
+                                                        {Object.keys(x.tags).length === 0 ?
+                                                            <span>Nothing.</span>
+                                                            :
+                                                            Object.keys(x.tags).map(k => {
+                                                                return (
+                                                                    <RefTag key={k} type='tag'>{k}</RefTag>
+                                                                );
+                                                            })
+                                                        }
+                                                    </p>
+                                                </p>
+                                            </MediaPanel>
+                                        );
+                                    })
+                                },
+                                nothing: () => null
                             })}
                         </Container>
                     </Section>
@@ -115,39 +126,50 @@ class HomeView extends React.PureComponent<Props, void> {
     }
 }
 
-interface IndexedSummaryProps {
-    indexedList: Indexed[];
+interface StatiStatisticsProps {
+    loading?: boolean;
+    statistics?: Statistics;
 }
 
-class IndexedSummary extends React.PureComponent<IndexedSummaryProps, any> {
+class StatisticsNav extends React.PureComponent<StatiStatisticsProps, any> {
+    format(key: string) {
+        if (this.props.loading) {
+            return '...';
+        }
+        const num = this.props.statistics.count[key];
+        return String(num).replace(/(\d)(?=(\d\d\d)+(?!\d))/g, '$1,');
+    }
+
     render() {
-        const { indexedList } = this.props;
+        const { statistics } = this.props;
+
         const items = [
             {
                 heading: 'Organizations',
-                title: indexedList.length.toString()
+                title: this.format('organization')
             },
             {
                 heading: 'Projects',
-                title: indexedList.length.toString()
+                title: this.format('project')
             },
             {
                 heading: 'Repositories',
-                title: indexedList.length.toString()
+                title: this.format('repository')
             },
             {
                 heading: 'Branches',
-                title: indexedList.length.toString()
+                title: this.format('branch')
             },
             {
                 heading: 'Tags',
-                title: indexedList.length.toString()
+                title: this.format('tag')
             },
             {
-                heading: 'Files',
-                title: indexedList.length.toString()
+                heading: 'Documents',
+                title: this.format('document')
             }
         ];
+
         return (
             <HeadingNav items={items} />
         );
@@ -156,7 +178,7 @@ class IndexedSummary extends React.PureComponent<IndexedSummaryProps, any> {
 
 function mapStateToProps(state: RootState, props: Props): Props {
     return {
-        indexedList: state.app.present.indexedList
+        statistics: state.app.present.statistics
     };
 }
 

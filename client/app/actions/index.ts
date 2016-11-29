@@ -3,11 +3,11 @@ import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
-import { RootState, FilterParams, Indexed } from '../reducers';
+import { RootState, FilterParams, Statistics } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
-    GetIndexedList |
+    GetStatistics |
     GetBaseFilters |
     Search |
     ResetFacets |
@@ -136,20 +136,22 @@ export function search(dispatch: Dispatch<Search>, filterParams: FilterParams): 
         });
 }
 
-export interface GetIndexedList extends Action {
-    type: 'GET_INDEXED_LIST';
+export interface GetStatistics extends Action {
+    type: 'GET_STATISTICS';
     payload: {
-        result: Indexed[];
+        statistics: Statistics;
     };
 }
 
-export function getIndexedList(dispatch: Dispatch<RootState>): void {
-    WebApi.get('indexed')
-        .then((res: { result: Indexed[] }) => {
+export function getStatistics(dispatch: Dispatch<RootState>): void {
+    WebApi.get('statistics')
+        .then(res => {
             // console.log(res);
             dispatch({
-                type: 'GET_INDEXED_LIST',
-                payload: res
+                type: 'GET_STATISTICS',
+                payload: {
+                    statistics: res
+                }
             });
         })
         .catch(e => {
