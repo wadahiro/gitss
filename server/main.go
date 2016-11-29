@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 
 	"github.com/codegangsta/cli"
@@ -70,7 +71,7 @@ func main() {
 				{
 					Name:      "add",
 					Usage:     "Add a sync setting with the bitbucket server",
-					ArgsUsage: "[organization name] [bitbucket server url] [username] [password]",
+					ArgsUsage: "[organization name] [bitbucket server url] --user=[username] --password=[password] --include-projects=<...> --exclude-projects=<...> --include-repositories=<...> --exclude-repositories=<...> --include-branches=<...> --exclude-branches=<...> --include-tags=<...> --exclude-tags=<...>",
 					Action:    AddBitbucketServerSetting,
 					Flags: []cli.Flag{
 						cli.StringFlag{
@@ -83,13 +84,47 @@ func main() {
 							Value: "",
 							Usage: "Set password for the bitbucket server if you'd like to use Basic Authentication",
 						},
+						cli.StringFlag{
+							Name:  "include-projects",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the projects which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-projects",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the projects which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-repositories",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the repositories which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-repositories",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the repositories which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-branches",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the branches which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-branches",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the branches which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-tags",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the tags which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-tags",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the tags which you'd like to exclude",
+						},
 					},
-				},
-				{
-					Name:      "sync",
-					Usage:     "Sync a sync setting with the bitbucket server",
-					ArgsUsage: "[organization name]",
-					Action:    SyncBitbucketServerSetting,
 				},
 			},
 		},
@@ -198,34 +233,34 @@ func AddBitbucketServerSetting(c *cli.Context) {
 	bitbucketUrl := c.Args()[1]
 	user := c.String("user")
 	password := c.String("password")
+	includeProjects := regex(c.String("include-projects"))
+	excludeProjects := regex(c.String("exclude-projects"))
+	includeRepositories := regex(c.String("include-repositories"))
+	excludeRepositories := regex(c.String("exclude-repositories"))
+	includeBranches := regex(c.String("include-branches"))
+	excludeBranches := regex(c.String("exclude-branches"))
+	includeTags := regex(c.String("include-tags"))
+	excludeTags := regex(c.String("exclude-tags"))
 
 	scmOptions := make(map[string]string)
 	scmOptions["type"] = "bitbucket"
 	scmOptions["url"] = bitbucketUrl
 	scmOptions["user"] = user
 	scmOptions["password"] = password
+	scmOptions["includeProjects"] = includeProjects
+	scmOptions["excludeProjects"] = excludeProjects
+	scmOptions["includeRepositories"] = includeRepositories
+	scmOptions["excludeRepositories"] = excludeRepositories
 
-	err := config.AddSetting(organization, scmOptions)
+	err := config.AddSetting(organization, scmOptions, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func SyncBitbucketServerSetting(c *cli.Context) {
-	debugMode := isDebugMode()
-
-	if len(c.Args()) != 1 {
-		log.Fatalln("Please specified [organization name]")
-	}
-
-	config := config.NewConfig(c, debugMode)
-
-	organization := c.Args()[0]
-
-	err := config.SyncSCM(organization)
-	if err != nil {
-		log.Println(err)
-	}
+func regex(pattern string) string {
+	regexp.MustCompile(pattern)
+	return pattern
 }
 
 func ImportGitRepository(c *cli.Context) {

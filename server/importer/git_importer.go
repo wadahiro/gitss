@@ -49,9 +49,8 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
-	// branches and tags in the git repository
-	// @TODO include, exclude options
-	branchMap, tagMap, err := repo.GetLatestCommitIdsMap(nil, nil, nil, nil)
+	// branches and tags in the git repository (include/exclude filters are applied)
+	branchMap, tagMap, err := repo.GetLatestCommitIdsMap()
 	if err != nil {
 		log.Printf("Failed to get latest commitIds of branch and tag. %+v\n", err)
 		return
@@ -171,7 +170,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	// process
 	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags)
 
-	callBach := func(operations []indexer.FileIndexOperation) {
+	callBatch := func(operations []indexer.FileIndexOperation) {
 		err := g.indexer.BatchFileIndex(operations)
 		if err != nil {
 			errors.Errorf("Batch indexed error: %+v", err)
@@ -201,7 +200,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 		if opsSize >= batchLimitSize {
 			// fmt.Printf("\n")
 
-			callBach(operations)
+			callBatch(operations)
 
 			// reset
 			operations = nil
@@ -212,7 +211,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	// remains
 	if len(operations) > 0 {
 		// fmt.Printf("\n")
-		callBach(operations)
+		callBatch(operations)
 	}
 
 	// Save config after index completed
