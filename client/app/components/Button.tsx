@@ -8,6 +8,7 @@ interface ButtonProps {
     color?: Color;
     size?: Size;
     icon?: string;
+    onClick?: (e: React.SyntheticEvent) => void;
 }
 
 export class Button extends React.PureComponent<ButtonProps, void> {

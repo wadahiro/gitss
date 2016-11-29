@@ -1,4 +1,5 @@
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 
 import { Size } from './Modifiers';
 import { Button } from './Button';
@@ -26,14 +27,22 @@ export class InputText extends React.PureComponent<InputTextProps, void> {
 interface InputTextAddonProps extends InputTextProps {
     buttonTitle?: string;
     buttonIcon?: string;
+    onButtonClick?: (value: string) => void;
 }
 
 export class InputTextAddon extends React.PureComponent<InputTextAddonProps, void> {
+    input: any = null;
+
+    handleButtonClick = (e: React.SyntheticEvent) => {
+        this.props.onButtonClick(ReactDOM.findDOMNode(this.input)['value']);
+    };
+
     render() {
+        const { onButtonClick, ...rest } = this.props as InputTextAddonProps;
         return (
             <Addons>
-                <InputText {...this.props} />
-                <Button size={this.props.size} icon={this.props.buttonIcon}>
+                <InputText ref={(input) => { this.input = input; } } {...rest} />
+                <Button size={this.props.size} icon={this.props.buttonIcon} onClick={this.handleButtonClick}>
                     {this.props.buttonTitle}
                 </Button>
             </Addons>

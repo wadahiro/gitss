@@ -4,7 +4,7 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router'
 
 import { AppFooter } from '../components/Footer';
-import { Grid, Container, Section, Row, Col } from '../components/Grid';
+import { Grid, Container, Section, Row, Col, StickyFooterPage } from '../components/Grid';
 import { Hero, HeroHead, HeroBody, HeroFoot } from '../components/Hero';
 import { Title, SubTitle } from '../components/Title';
 import { InputTextAddon } from '../components/Input';
@@ -38,61 +38,47 @@ class HomeView extends React.PureComponent<Props, void> {
         }
     };
 
+    handleClick = (value) => {
+        Actions.triggerSearch(this.props.dispatch, this.props.baseFilterParams, value);
+    };
+
     render() {
         const { loading, showOptions, query, filterParams, result, facets,
             baseFilterParams, baseFilterOptions } = this.props;
 
         return (
-            <div style={viewStyle}>
-                <div style={sectionStyle}>
-                    <Section>
-                    </Section>
-                    <Hero color='isPrimary'>
-                        <HeroBody>
-                            <Container>
-                                <Row>
-                                    <Col size='is3'>
-                                        <Title>GitSS</Title>
-                                        <SubTitle>Git Source Search</SubTitle>
-                                    </Col>
-                                    <Col size='is8'>
-
-                                        <InputTextAddon
-                                            placeholder='Search'
-                                            buttonIcon='fa fa-search'
-                                            isExpanded={true}
-                                            icon='fa fa-search'
-                                            size='isLarge'
-                                            hasIcon
-                                            defaultValue={this.props.query}
-                                            onKeyDown={this.handleKeyDown}
-                                            />
-                                    </Col>
-                                </Row>
-                            </Container>
-                        </HeroBody>
-                    </Hero>
-                </div>
-                <AppFooter />
-            </div>
+            <StickyFooterPage footer={<AppFooter />}>
+                <Section>
+                </Section>
+                <Hero color='isPrimary'>
+                    <HeroBody>
+                        <Container>
+                            <Row>
+                                <Col size='is3'>
+                                    <Title>GitSS</Title>
+                                    <SubTitle>Git Source Search</SubTitle>
+                                </Col>
+                                <Col size='is8'>
+                                    <InputTextAddon
+                                        placeholder='Search'
+                                        buttonIcon='fa fa-search'
+                                        onButtonClick={this.handleClick}
+                                        isExpanded={true}
+                                        icon='fa fa-search'
+                                        size='isLarge'
+                                        hasIcon
+                                        defaultValue={this.props.query}
+                                        onKeyDown={this.handleKeyDown}
+                                        />
+                                </Col>
+                            </Row>
+                        </Container>
+                    </HeroBody>
+                </Hero>
+            </StickyFooterPage>
         );
     }
 }
-
-const viewStyle = {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column'
-};
-
-const sectionStyle = {
-    flex: 1
-};
-
-const sideBarStyle = {
-    flex: '0 0 300px',
-    padding: 0
-};
 
 function mapStateToProps(state: RootState, props: Props): Props {
     return {

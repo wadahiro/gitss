@@ -103,7 +103,7 @@ class SearchView extends React.Component<Props, void> {
                         </div>
                     </Col>
                     <Col>
-                        <div style={{ paddingTop: 20,  paddingLeft: 20 }}>
+                        <div style={{ paddingTop: 20 }}>
                             <StickyFooterPage footer={<AppFooter />}>
                                 <SearchResultPanel style={resultPanelStyle}
                                     result={result}
@@ -116,11 +116,6 @@ class SearchView extends React.Component<Props, void> {
         );
     }
 }
-
-const sideBarStyle = {
-    // flex: '0 0 300px',
-    padding: 0
-};
 
 const sidePanelStyle = {
     position: 'fixed',
@@ -136,8 +131,9 @@ const sidePanelStyle = {
 
 const resultPanelStyle = {
     flex: '1 1',
-    padding: 10,
-    marginRigth: 300
+    paddingLeft: 50,
+    paddingRight: 30,
+    paddingBottom: 50
 };
 
 function mapStateToProps(state: RootState, props: Props): Props {
