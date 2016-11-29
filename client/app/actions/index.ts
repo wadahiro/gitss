@@ -3,14 +3,15 @@ import { browserHistory } from 'react-router';
 
 const { ActionCreators } = require('redux-undo');
 
-import { BaseFilterParams, FilterParams } from '../reducers';
+import { RootState, BaseFilterParams, FilterParams } from '../reducers';
 import WebApi from '../api/WebApi';
 
 export type Actions =
     GetBaseFilters |
     Search |
     ResetFacets |
-    SearchStart
+    SearchStart |
+    ToggleSearchOptions
     ;
 
 export interface GetBaseFilters extends Action {
@@ -92,6 +93,16 @@ export function triggerBaseFilter(dispatch: Dispatch<Search>, baseFilterParams: 
     browserHistory.push(`${_makeBaseFilterPath(baseFilterParams)}?${_makeQueryString(filterParams, query)}`);
 }
 
+export interface ToggleSearchOptions extends Action {
+    type: 'TOGGLE_SEARCH_OPTIONS';
+}
+
+export function toggleSearchOptions(dispatch: Dispatch<RootState>): void {
+    dispatch({
+        type: 'TOGGLE_SEARCH_OPTIONS'
+    });
+}
+
 function _makeQueryString(filterParams: FilterParams, query: string): string {
     const params = {
         ...filterParams,
@@ -156,7 +167,7 @@ function _triggerSearch(baseFilterParams: BaseFilterParams, filterParams?: Filte
         i: page
     };
 
-    browserHistory.push(`${_makeBaseFilterPath(baseFilterParams)}?${WebApi.queryString(queryParams)}`);
+    browserHistory.push(`/search?${WebApi.queryString(queryParams)}`);
 }
 
 function _toShortKeyParams(baseFilterParams: BaseFilterParams) {

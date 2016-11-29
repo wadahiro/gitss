@@ -24,6 +24,8 @@ export interface AppStateHistory {
 
 export interface AppState {
     loading: boolean;
+    showSearchOptions: boolean;
+
     facets: SearchFacets;
     result: SearchResult;
 
@@ -159,6 +161,7 @@ export interface RefFacets {
 function init(): AppState {
     return {
         loading: false,
+        showSearchOptions: false,
         facets: {
             facets: {},
             fullRefsFacet: []
@@ -188,6 +191,12 @@ function toOptions(array: string[] = []): Option[] {
 
 export const appStateReducer = (state: AppState = init(), action: Actions.Actions) => {
     switch (action.type) {
+        case 'TOGGLE_SEARCH_OPTIONS':
+            return {
+                ...state,
+                showSearchOptions: !state.showSearchOptions
+            };
+
         case 'GET_BASE_FILTERS':
 
             return {

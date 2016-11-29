@@ -9,6 +9,7 @@ import { Pager } from '../components/Pagination';
 import { RootState, SearchResult, SearchFacets, FilterParams, FacetKey } from '../reducers';
 
 interface SearchResultPanelProps {
+    style: Object;
     result: SearchResult;
     onPageChange: (page: number) => void;
 }
@@ -23,7 +24,7 @@ export class SearchResultPanel extends React.PureComponent<SearchResultPanelProp
         const pageSize = Math.ceil(result.size / result.limit) || 0;
 
         return (
-            <Grid>
+            <Grid style={this.props.style}>
                 {result && result.size > 10 &&
                     <Row>
                         <Col size='is12'>

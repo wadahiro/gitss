@@ -105,16 +105,18 @@ export default class WebApi {
     }
 
     static queryString(queryParams: Object = {}): string {
-        const query = Object.keys(queryParams).map(x => {
-            const v = queryParams[x];
-            if (Array.isArray(v)) {
-                return v.map(y => {
-                    return `${x}=${y}`;
-                }).join('&');
-            } else {
-                return `${x}=${v}`;
-            }
-        }).join('&');
+        const query = Object.keys(queryParams)
+            .map(x => {
+                const v = queryParams[x];
+                if (Array.isArray(v)) {
+                    return v.map(y => {
+                        return `${x}=${y}`;
+                    }).join('&');
+                } else {
+                    return `${x}=${v}`;
+                }
+            })
+            .filter(x => x !== '').join('&');
         return query;
     }
 }

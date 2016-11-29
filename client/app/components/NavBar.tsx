@@ -2,22 +2,21 @@ import * as React from 'react';
 import { findDOMNode } from 'react-dom';
 
 import { Container, TRow, TCol } from './Grid';
+import { Nav, NavGroup, NavItem, NavTitle } from './Nav';
 import { Select, Option, createIconValue } from './Select';
 import { InputText } from './Input';
 import { Title } from './Title';
+import { Icon } from './Icon';
 import { SearchResult, BaseFilterParams, BaseFilterOptions } from '../reducers';
 
-const Overlay = require('react-overlays/lib/Overlay');
-
-const BNav = require('re-bulma/lib/components/nav/nav').default;
-const BNavGroup = require('re-bulma/lib/components/nav/nav-group').default;
-const BNavItem = require('re-bulma/lib/components/nav/nav-item').default;
 const BHero = require('re-bulma/lib/layout/hero').default;
 const BHeroHead = require('re-bulma/lib/layout/hero-head').default;
 const BHeroBody = require('re-bulma/lib/layout/hero-body').default;
 
 interface NavProps {
     onKeyDown: React.KeyboardEventHandler;
+    showSideBarToggle: boolean;
+    onSideBarToggleClick: () => void;
     loading: boolean;
     result: SearchResult;
     query?: string;
@@ -51,12 +50,11 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
             position: 'fixed',
             width: '100%',
             zIndex: 1100,
-            top: 0,
-            marginBottom: 100
+            top: 0
         };
         const navStyle = {
             backgroundColor: '#205081',
-            width: '100%',
+            // width: '100%',
             zIndex: 1100,
             paddingLeft: 24,
             paddingRight: 24
@@ -86,23 +84,19 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
             opacity: .75
         };
 
-        const { baseFilterParams, baseFilterOptions } = this.props;
+        const { showSideBarToggle, onSideBarToggleClick,
+            baseFilterParams, baseFilterOptions } = this.props;
 
         // <img src="./imgs/title.png" alt="GitSS" width='400'/>
         return (
             <div style={rootTyle}>
-                <BNav style={navStyle}>
-                    <BNavGroup align='left' style={navGroupStyle}>
+                <Nav style={navStyle}>
+                    <NavGroup align='left' style={navGroupStyle}>
                         <NavItem>
                             <Title style={{ color: 'white' }}>GitSS</Title>
                         </NavItem>
-                        <NavItem>
-                            <BaseFilterNav values={baseFilterParams}
-                                options={baseFilterOptions}
-                                onChange={this.props.onBaseFilterChange} />
-                        </NavItem>
-                    </BNavGroup>
-                    <BNavGroup align='right' style={navGroupStyle}>
+                    </NavGroup>
+                    <NavGroup align='center' style={navGroupStyle}>
                         <NavItem>
                             <InputText
                                 placeholder='Search'
@@ -113,33 +107,23 @@ export class NavBar extends React.PureComponent<NavProps, NavState> {
                                 onKeyDown={this.props.onKeyDown}
                                 />
                         </NavItem>
-                    </BNavGroup>
-                </BNav>
+                    </NavGroup>
+                    <NavGroup align='right' style={navGroupStyle}>
+                    </NavGroup>
+                </Nav>
                 <BHero style={{ backgroundColor: '#f5f7fa', borderBottom: '1px solid #ccc' }}>
                     <BHeroHead>
                         <Container hasTextCentered>
-                            {this.props.result &&
+                            {this.props.loading ?
+                                <p style={{ margin: 5 }}><i className='fa fa-ellipsis-h' /></p>
+                                :
+                                this.props.result &&
                                 <p style={{ margin: 5 }}><b>We’ve found {this.props.result.size}&nbsp;code results {this.props.result.time > 0 ? `(${Math.round(this.props.result.time * 1000) / 1000} seconds)` : ''}</b></p>
                             }
                         </Container>
                     </BHeroHead>
                 </BHero>
             </div>
-        );
-    }
-}
-
-const navItemStyle = {
-    paddingTop: 3,
-    paddingBottom: 3
-};
-
-class NavItem extends React.PureComponent<void, void> {
-    render() {
-        return (
-            <BNavItem {...this.props} style={navItemStyle}>
-                {this.props.children}
-            </BNavItem>
         );
     }
 }

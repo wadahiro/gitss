@@ -29,7 +29,13 @@ export function Section(props) {
     );
 }
 
-export function Row(props) {
+interface RowProps {
+    isGapless?: boolean;
+    children?: React.ReactElement<any>;
+    style?: Object;
+}
+
+export function Row(props: RowProps) {
     return (
         <Columns {...props}>
             {props.children}
@@ -38,7 +44,7 @@ export function Row(props) {
 }
 
 interface ColProps {
-    size: 'is1' | 'is2' | 'is3' | 'is4' | 'is5' | 'is6' | 'is7' | 'is8' | 'is9' | 'is10' | 'is11' | 'is12';
+    size?: 'is1' | 'is2' | 'is3' | 'is4' | 'is5' | 'is6' | 'is7' | 'is8' | 'is9' | 'is10' | 'is11' | 'is12' | 'isNarrow';
     children?: React.ReactElement<any>;
     style?: any;
 }
@@ -100,3 +106,32 @@ export function TCol(props: TColProps) {
         </div>
     );
 }
+
+interface StickyFooterPageProps {
+    footer: React.ReactElement<any>;
+}
+
+export class StickyFooterPage extends React.PureComponent<StickyFooterPageProps, void> {
+    render() {
+        return (
+            <div style={stickyFooterPageStyle}>
+                <div style={stickyFooterPageMainStyle}>
+                    {this.props.children}
+                </div>
+                <div>
+                    {this.props.footer}
+                </div>
+            </div>
+        );
+    }
+}
+
+const stickyFooterPageStyle = {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column'
+};
+
+const stickyFooterPageMainStyle = {
+    flex: 1
+};

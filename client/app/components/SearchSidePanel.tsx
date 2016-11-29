@@ -10,6 +10,7 @@ import * as Actions from '../actions';
 
 
 interface SearchSidePanelProps {
+    style: Object;
     onToggle: (filterParams: FilterParams) => void;
     facets: SearchFacets;
     searchParams: FilterParams;
@@ -53,7 +54,7 @@ export class SearchSidePanel extends React.PureComponent<SearchSidePanelProps, v
         let Panel = FilterPanel; // FacetPanel
 
         return (
-            <div>
+            <div style={this.props.style}>
                 <Panel title='File extensions'
                     facet={facets.facets['ext']}
                     emptyKeyword='/noext/'
