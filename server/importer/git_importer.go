@@ -183,7 +183,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	// batch
 	operations := []indexer.FileIndexOperation{}
 	var opsSize int64 = 0
-	var batchLimitSize int64 = 1024 * 1024 // 1MB
+	var batchLimitSize int64 = 1024 * 512 // 512KB
 
 	// fmt.Println("start queue reading")
 
@@ -259,6 +259,12 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar 
 	}
 
 	var wg sync.WaitGroup
+	scanQueue := make(chan ScannedFile, 5)
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go scanFiles(&wg, scanQueue, queue, g, r, bar)
+	}
 
 	for blob, file := range addFiles {
 		// check size
@@ -266,54 +272,73 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar 
 			continue
 		}
 
-		wg.Add(1)
-		go func(blob string, file repo.GitFile) {
-			defer wg.Done()
-
-			for path, loc := range file.Locations {
-				// check contentType and retrive the file content
-				// !! this will be heavy process !!
-				contentType, content, err := g.parseContent(r, blob)
-				if err != nil {
-					log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
-					continue
-					// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
-				}
-
-				// @TODO Extract text from binary in the future?
-				if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
-					continue
-				}
-
-				text, encoding, err := readText(content)
-				if err != nil {
-					text = string(content)
-					encoding = "utf8"
-				}
-
-				fileIndex := indexer.FileIndex{
-					Metadata: indexer.Metadata{
-						Blob:         blob,
-						Organization: r.Organization,
-						Project:      r.Project,
-						Repository:   r.Repository,
-						Branches:     loc.Branches,
-						Tags:         loc.Tags,
-						Path:         path,
-						Ext:          indexer.GetExt(path),
-						Encoding:     encoding,
-						Size:         file.Size,
-					},
-					Content: text,
-				}
-
-				bar.Total = bar.Total + 1
-
-				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
-			}
-		}(blob, file)
+		scanQueue <- ScannedFile{Blob: blob, GitFile: file}
 	}
+
+	close(scanQueue)
+
 	wg.Wait()
+}
+
+type ScannedFile struct {
+	Blob    string
+	GitFile repo.GitFile
+}
+
+func scanFiles(wg *sync.WaitGroup, scanQueue chan ScannedFile, queue chan indexer.FileIndexOperation, g *GitImporter, r *repo.GitRepo, bar *pb.ProgressBar) {
+	defer wg.Done()
+
+	for {
+		scannedFile, ok := <-scanQueue
+		if !ok {
+			return
+		}
+
+		blob := scannedFile.Blob
+		file := scannedFile.GitFile
+
+		for path, loc := range file.Locations {
+			// check contentType and retrive the file content
+			// !! this will be heavy process !!
+			contentType, content, err := g.parseContent(r, blob)
+			if err != nil {
+				log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
+				continue
+				// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
+			}
+
+			// @TODO Extract text from binary in the future?
+			if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
+				continue
+			}
+
+			text, encoding, err := readText(content)
+			if err != nil {
+				text = string(content)
+				encoding = "utf8"
+			}
+
+			fileIndex := indexer.FileIndex{
+				Metadata: indexer.Metadata{
+					Blob:         blob,
+					Organization: r.Organization,
+					Project:      r.Project,
+					Repository:   r.Repository,
+					Branches:     loc.Branches,
+					Tags:         loc.Tags,
+					Path:         path,
+					Ext:          indexer.GetExt(path),
+					Encoding:     encoding,
+					Size:         file.Size,
+				},
+				Content: text,
+			}
+
+			bar.Total = bar.Total + 1
+
+			queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
+		}
+	}
 }
 
 // How to detect encoding
