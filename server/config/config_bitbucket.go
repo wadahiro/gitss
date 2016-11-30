@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"regexp"
+
 	"github.com/pkg/errors"
 )
 
@@ -77,8 +79,41 @@ func NewBitbucketOrganizationSetting(o OrganizationSetting) SyncSetting {
 	return &BitbucketOrganizationSetting{o}
 }
 
-func (b *BitbucketOrganizationSetting) AddRepository(project string, repositoryUrl string) error {
-	return b.AddRepository(project, repositoryUrl)
+func (b *BitbucketOrganizationSetting) JSON() ([]byte, error) {
+	setting := &struct {
+		Name string            `json:"name"`
+		Scm  map[string]string `json:"scm,omitempty"`
+	}{Name: b.Name, Scm: b.Scm}
+
+	bytes, err := json.MarshalIndent(setting, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return bytes, err
+}
+
+func regex(pattern string, isInclude bool) *regexp.Regexp {
+	if pattern != "" {
+		r, err := regexp.Compile(pattern)
+		if err == nil {
+			return r
+		}
+	}
+
+	if isInclude {
+		return MATCH_ALL
+	} else {
+		return nil
+	}
+}
+
+func (b *BitbucketOrganizationSetting) GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp) {
+	includeBranches := regex(b.IncludeBranches, true)
+	excludeBranches := regex(b.ExcludeBranches, false)
+	includeTags := regex(b.IncludeTags, true)
+	excludeTags := regex(b.ExcludeTags, false)
+
+	return includeBranches, excludeBranches, includeTags, excludeTags
 }
 
 func (b *BitbucketOrganizationSetting) SyncSCM() error {
@@ -87,6 +122,11 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 	start := 0
 
 	log.Println("Fetching repositories from bitbucket server: ", b.Scm["url"])
+
+	includeProjects := regex(b.Scm["includeProjects"], true)
+	excludeProjects := regex(b.Scm["excludeProjects"], false)
+	includeRepositories := regex(b.Scm["includeRepositories"], true)
+	excludeRepositories := regex(b.Scm["excludeRepositories"], false)
 
 	for {
 		client := &http.Client{}
@@ -109,11 +149,31 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 			password = strings.Replace(password, "@", "%40", -1)
 			cloneUrl := s[0] + ":" + password + "@" + s[1]
 
-			p, ok := projects[r.Project.Name]
+			// include/exclude project
+			if !includeProjects.MatchString(r.Project.Key) ||
+				(excludeProjects != nil && excludeProjects.MatchString(r.Project.Key)) {
+				log.Printf("%s:%s is ignored.\n", b.GetName(), r.Project.Key)
+				continue
+			}
+
+			// log.Println("project ok")
+
+			// include/exclude repository
+			rs := RepositorySetting{Url: cloneUrl}
+			rn := rs.GetName()
+			if !includeRepositories.MatchString(rn) ||
+				(excludeRepositories != nil && excludeRepositories.MatchString(rn)) {
+				log.Printf("%s:%s/%s is ignored.\n", b.GetName(), r.Project.Key, rn)
+				continue
+			}
+
+			// log.Println("repository ok")
+
+			p, ok := projects[r.Project.Key]
 			if !ok {
-				projects[r.Project.Name] = &ProjectSetting{Name: r.Project.Name, Repositories: []RepositorySetting{RepositorySetting{Url: cloneUrl}}}
+				projects[r.Project.Key] = &ProjectSetting{Name: r.Project.Key, Repositories: []RepositorySetting{RepositorySetting{Url: cloneUrl}}}
 			} else {
-				p.Repositories = append(projects[r.Project.Name].Repositories, RepositorySetting{Url: cloneUrl})
+				p.Repositories = append(projects[r.Project.Key].Repositories, RepositorySetting{Url: cloneUrl})
 			}
 		}
 

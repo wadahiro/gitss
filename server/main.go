@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 
 	"github.com/codegangsta/cli"
@@ -36,31 +37,62 @@ func main() {
 			Usage:  "Run GitSS",
 			Action: RunServer,
 			Flags: []cli.Flag{
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
+				cli.IntFlag{
+					Name:  "port",
+					Value: 3000,
+					Usage: "port number",
+				},
+				cli.StringFlag{
+					Name:  "schedule",
+					Value: "0 */10 * * * *",
+					Usage: "Sync schedule",
 				},
 			},
 		},
 		{
 			Name:      "sync",
-			Usage:     "Sync all git repositories",
-			ArgsUsage: "",
-			Action:    SyncAll,
+			Usage:     "Sync git repository",
+			ArgsUsage: "[ORGANIZATION] [PROJECT] [REPOSITORY]",
+			Action:    Sync,
 			Flags: []cli.Flag{
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
+				cli.BoolFlag{
+					Name:  "all",
+					Usage: "Sync all git repositories",
 				},
 			},
 		},
 		{
 			Name:      "add",
-			Usage:     "Add a git repository",
-			ArgsUsage: "",
+			Usage:     "Add a sync setting",
+			ArgsUsage: "ORGANIZATION PROJECT GIT_REPOSITORY_URL",
 			Action:    AddGitRepository,
+			Flags: []cli.Flag{
+				cli.Int64Flag{
+					Name:  "sizeLimit",
+					Value: 1024 * 1024, //1MB
+					Usage: "Indexing limit file size (byte)",
+				},
+				cli.StringFlag{
+					Name:  "include-branches",
+					Value: ".*",
+					Usage: "Set regex pattern of the name of the branches which you'd like to include",
+				},
+				cli.StringFlag{
+					Name:  "exclude-branches",
+					Value: "",
+					Usage: "Set regex pattern of the name of the branches which you'd like to exclude",
+				},
+				cli.StringFlag{
+					Name:  "include-tags",
+					Value: ".*",
+					Usage: "Set regex pattern of the name of the tags which you'd like to include",
+				},
+				cli.StringFlag{
+					Name:  "exclude-tags",
+					Value: "",
+					Usage: "Set regex pattern of the name of the tags which you'd like to exclude",
+				},
+			},
 		},
 		{
 			Name:      "bitbucket",
@@ -70,7 +102,7 @@ func main() {
 				{
 					Name:      "add",
 					Usage:     "Add a sync setting with the bitbucket server",
-					ArgsUsage: "[organization name] [bitbucket server url] [username] [password]",
+					ArgsUsage: "ORGANIZATION BITBUCKET_SERVER_URL",
 					Action:    AddBitbucketServerSetting,
 					Flags: []cli.Flag{
 						cli.StringFlag{
@@ -83,36 +115,57 @@ func main() {
 							Value: "",
 							Usage: "Set password for the bitbucket server if you'd like to use Basic Authentication",
 						},
+						cli.Int64Flag{
+							Name:  "sizeLimit",
+							Value: 1024 * 1024, //1MB
+							Usage: "Indexing limit file size (byte)",
+						},
+						cli.StringFlag{
+							Name:  "include-projects",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the projects which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-projects",
+							Value: "",
+							Usage: "Set regex pattern of the name of the projects which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-repositories",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the repositories which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-repositories",
+							Value: "",
+							Usage: "Set regex pattern of the name of the repositories which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-branches",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the branches which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-branches",
+							Value: "",
+							Usage: "Set regex pattern of the name of the branches which you'd like to exclude",
+						},
+						cli.StringFlag{
+							Name:  "include-tags",
+							Value: ".*",
+							Usage: "Set regex pattern of the name of the tags which you'd like to include",
+						},
+						cli.StringFlag{
+							Name:  "exclude-tags",
+							Value: "",
+							Usage: "Set regex pattern of the name of the tags which you'd like to exclude",
+						},
 					},
-				},
-				{
-					Name:      "sync",
-					Usage:     "Sync a sync setting with the bitbucket server",
-					ArgsUsage: "[organization name]",
-					Action:    SyncBitbucketServerSetting,
-				},
-			},
-		},
-		{
-			Name:      "import",
-			Usage:     "Import a git repository",
-			ArgsUsage: "[organization name] [project name] [git repository url]",
-			Action:    ImportGitRepository,
-			Flags: []cli.Flag{
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
 				},
 			},
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "port",
-			Value: 3000,
-			Usage: "port number",
-		},
 		cli.StringFlag{
 			Name:  "data",
 			Value: "./data",
@@ -122,11 +175,6 @@ func main() {
 			Name:  "indexer",
 			Value: "bleve",
 			Usage: "Indexer implementation",
-		},
-		cli.StringFlag{
-			Name:  "schedule",
-			Value: "0 */10 * * * *",
-			Usage: "Sync schedule",
 		},
 	}
 	app.Run(args)
@@ -155,22 +203,38 @@ func RunServer(c *cli.Context) {
 	initRouter(config, indexer)
 }
 
-func SyncAll(c *cli.Context) {
+func Sync(c *cli.Context) error {
 	debugMode := isDebugMode()
+
+	all := c.Bool("all")
 
 	config := config.NewConfig(c, debugMode)
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
 	importer := importer.NewGitImporter(config, indexer)
 
-	service.RunSync(config, importer)
+	if all {
+		service.RunSyncAll(config, importer)
+
+	} else {
+		if len(c.Args()) != 3 {
+			return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
+		}
+
+		organization := c.Args()[0]
+		project := c.Args()[1]
+		repository := c.Args()[2]
+
+		service.RunSync(config, importer, organization, project, repository)
+	}
+	return nil
 }
 
-func AddGitRepository(c *cli.Context) {
+func AddGitRepository(c *cli.Context) error {
 	debugMode := isDebugMode()
 
 	if len(c.Args()) != 3 {
-		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
+		return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
 	}
 
 	config := config.NewConfig(c, debugMode)
@@ -179,86 +243,64 @@ func AddGitRepository(c *cli.Context) {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
-	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
+	sizeLimit := c.Int64("sizeLimit")
+
+	includeBranches := regex(c.String("include-branches"))
+	excludeBranches := regex(c.String("exclude-branches"))
+	includeTags := regex(c.String("include-tags"))
+	excludeTags := regex(c.String("exclude-tags"))
+
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil, sizeLimit, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
-		log.Println(err)
+		return cli.NewExitError(err, 1)
 	}
+	return nil
 }
 
-func AddBitbucketServerSetting(c *cli.Context) {
+func AddBitbucketServerSetting(c *cli.Context) error {
 	debugMode := isDebugMode()
 
 	if len(c.Args()) != 2 {
-		log.Fatalln("Please specified [organization name] [bitbucket server url]")
+		return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
 	}
 
 	config := config.NewConfig(c, debugMode)
 
 	organization := c.Args()[0]
 	bitbucketUrl := c.Args()[1]
+
 	user := c.String("user")
 	password := c.String("password")
+	sizeLimit := c.Int64("sizeLimit")
+	includeProjects := regex(c.String("include-projects"))
+	excludeProjects := regex(c.String("exclude-projects"))
+	includeRepositories := regex(c.String("include-repositories"))
+	excludeRepositories := regex(c.String("exclude-repositories"))
+	includeBranches := regex(c.String("include-branches"))
+	excludeBranches := regex(c.String("exclude-branches"))
+	includeTags := regex(c.String("include-tags"))
+	excludeTags := regex(c.String("exclude-tags"))
 
 	scmOptions := make(map[string]string)
 	scmOptions["type"] = "bitbucket"
 	scmOptions["url"] = bitbucketUrl
 	scmOptions["user"] = user
 	scmOptions["password"] = password
+	scmOptions["includeProjects"] = includeProjects
+	scmOptions["excludeProjects"] = excludeProjects
+	scmOptions["includeRepositories"] = includeRepositories
+	scmOptions["excludeRepositories"] = excludeRepositories
 
-	err := config.AddSetting(organization, scmOptions)
+	err := config.AddSetting(organization, scmOptions, sizeLimit, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
-		log.Println(err)
+		return cli.NewExitError(err, 1)
 	}
+	return nil
 }
 
-func SyncBitbucketServerSetting(c *cli.Context) {
-	debugMode := isDebugMode()
-
-	if len(c.Args()) != 1 {
-		log.Fatalln("Please specified [organization name]")
-	}
-
-	config := config.NewConfig(c, debugMode)
-
-	organization := c.Args()[0]
-
-	err := config.SyncSCM(organization)
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-func ImportGitRepository(c *cli.Context) {
-	debugMode := isDebugMode()
-
-	if len(c.Args()) != 3 {
-		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
-	}
-
-	config := config.NewConfig(c, debugMode)
-
-	organization := c.Args()[0]
-	projectName := c.Args()[1]
-	gitRepoUrl := c.Args()[2]
-
-	log.Println("-------------- GitSS Import Git Repository -------------")
-	log.Println("VERSION: ", Version)
-	log.Println("COMMIT_HASH: ", CommitHash)
-	log.Println("DATA_DIR: ", config.DataDir)
-	log.Println("INDEXER_TYPE: ", config.IndexerType)
-	log.Println("DEBUG_MODE: ", config.Debug)
-	log.Println("ORGANIZATION_NAME: ", organization)
-	log.Println("PROJECT_NAME: ", projectName)
-	log.Println("GIT_REPOSITORY_URL: ", gitRepoUrl)
-	log.Println("SIZE_LIMIT: ", config.SizeLimit)
-	log.Println("--------------------------------------------------------")
-
-	config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
-
-	reader := repo.NewGitRepoReader(config)
-	indexer := newIndexer(config, reader)
-	importer := importer.NewGitImporter(config, indexer)
-	importer.Run(organization, projectName, gitRepoUrl)
+func regex(pattern string) string {
+	regexp.MustCompile(pattern)
+	return pattern
 }
 
 func isDebugMode() bool {

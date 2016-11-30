@@ -49,9 +49,8 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
-	// branches and tags in the git repository
-	// @TODO include, exclude options
-	branchMap, tagMap, err := repo.GetLatestCommitIdsMap(nil, nil, nil, nil)
+	// branches and tags in the git repository (include/exclude filters are applied)
+	branchMap, tagMap, err := repo.GetLatestCommitIdsMap()
 	if err != nil {
 		log.Printf("Failed to get latest commitIds of branch and tag. %+v\n", err)
 		return
@@ -62,13 +61,16 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, repo.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
 
+	// get sizeLimit for this repository
+	sizeLimit := g.config.GetSizeLimit(organization, project, repo.Repository)
+
 	// progress bar
 	bar := pb.StartNew(0)
 	bar.ShowPercent = true
 
 	start := time.Now()
 
-	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap)
+	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap, sizeLimit)
 	if err != nil {
 		log.Printf("Failed to index. %+v", err)
 		return
@@ -124,7 +126,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository))
 }
 
-func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap) error {
+func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap, sizeLimit int64) error {
 	// collect create file entries
 	createBranches := make(map[string]string)
 	updateBranches := make(map[string][2]string)
@@ -169,9 +171,9 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	queue := make(chan indexer.FileIndexOperation, 100)
 
 	// process
-	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags)
+	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags, sizeLimit)
 
-	callBach := func(operations []indexer.FileIndexOperation) {
+	callBatch := func(operations []indexer.FileIndexOperation) {
 		err := g.indexer.BatchFileIndex(operations)
 		if err != nil {
 			errors.Errorf("Batch indexed error: %+v", err)
@@ -184,7 +186,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	// batch
 	operations := []indexer.FileIndexOperation{}
 	var opsSize int64 = 0
-	var batchLimitSize int64 = 1024 * 1024 // 1MB
+	var batchLimitSize int64 = 1024 * 512 // 512KB
 
 	// fmt.Println("start queue reading")
 
@@ -201,7 +203,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 		if opsSize >= batchLimitSize {
 			// fmt.Printf("\n")
 
-			callBach(operations)
+			callBatch(operations)
 
 			// reset
 			operations = nil
@@ -212,7 +214,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	// remains
 	if len(operations) > 0 {
 		// fmt.Printf("\n")
-		callBach(operations)
+		callBatch(operations)
 	}
 
 	// Save config after index completed
@@ -225,7 +227,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	return nil
 }
 
-func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string) error {
+func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string, sizeLimit int64) error {
 	addFiles, err := r.GetFileEntriesMap(branchMap, tagMap)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to get file entries. branches: %v tags: %v", branchMap, tagMap)
@@ -241,8 +243,8 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.handleAddFiles(queue, bar, r, addFiles)
-		g.handleAddFiles(queue, bar, r, updateAddFiles)
+		g.handleAddFiles(queue, bar, r, addFiles, sizeLimit)
+		g.handleAddFiles(queue, bar, r, updateAddFiles, sizeLimit)
 		g.handleDelFiles(queue, bar, r, delFiles)
 	}()
 
@@ -254,67 +256,92 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb
 	return nil
 }
 
-func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
+func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile, sizeLimit int64) {
 	if len(addFiles) == 0 {
 		return
 	}
 
 	var wg sync.WaitGroup
+	scanQueue := make(chan ScannedFile, 5)
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go scanFiles(&wg, scanQueue, queue, g, r, bar)
+	}
 
 	for blob, file := range addFiles {
 		// check size
-		if file.Size > g.config.SizeLimit {
+		if sizeLimit > 0 && file.Size > sizeLimit {
 			continue
 		}
 
-		wg.Add(1)
-		go func(blob string, file repo.GitFile) {
-			defer wg.Done()
-
-			for path, loc := range file.Locations {
-				// check contentType and retrive the file content
-				// !! this will be heavy process !!
-				contentType, content, err := g.parseContent(r, blob)
-				if err != nil {
-					log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
-					continue
-					// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
-				}
-
-				// @TODO Extract text from binary in the future?
-				if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
-					continue
-				}
-
-				text, encoding, err := readText(content)
-				if err != nil {
-					text = string(content)
-					encoding = "utf8"
-				}
-
-				fileIndex := indexer.FileIndex{
-					Metadata: indexer.Metadata{
-						Blob:         blob,
-						Organization: r.Organization,
-						Project:      r.Project,
-						Repository:   r.Repository,
-						Branches:     loc.Branches,
-						Tags:         loc.Tags,
-						Path:         path,
-						Ext:          indexer.GetExt(path),
-						Encoding:     encoding,
-						Size:         file.Size,
-					},
-					Content: text,
-				}
-
-				bar.Total = bar.Total + 1
-
-				queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
-			}
-		}(blob, file)
+		scanQueue <- ScannedFile{Blob: blob, GitFile: file}
 	}
+
+	close(scanQueue)
+
 	wg.Wait()
+}
+
+type ScannedFile struct {
+	Blob    string
+	GitFile repo.GitFile
+}
+
+func scanFiles(wg *sync.WaitGroup, scanQueue chan ScannedFile, queue chan indexer.FileIndexOperation, g *GitImporter, r *repo.GitRepo, bar *pb.ProgressBar) {
+	defer wg.Done()
+
+	for {
+		scannedFile, ok := <-scanQueue
+		if !ok {
+			return
+		}
+
+		blob := scannedFile.Blob
+		file := scannedFile.GitFile
+
+		for path, loc := range file.Locations {
+			// check contentType and retrive the file content
+			// !! this will be heavy process !!
+			contentType, content, err := g.parseContent(r, blob)
+			if err != nil {
+				log.Printf("Failed to parse file. [%s] - %s %+v\n", blob, path, err)
+				continue
+				// return errors.Wrapf(err, "Failed to parse file. [%s] - %s\n", blob, path)
+			}
+
+			// @TODO Extract text from binary in the future?
+			if !strings.HasPrefix(contentType, "text/") && contentType != "application/octet-stream" {
+				continue
+			}
+
+			text, encoding, err := readText(content)
+			if err != nil {
+				text = string(content)
+				encoding = "utf8"
+			}
+
+			fileIndex := indexer.FileIndex{
+				Metadata: indexer.Metadata{
+					Blob:         blob,
+					Organization: r.Organization,
+					Project:      r.Project,
+					Repository:   r.Repository,
+					Branches:     loc.Branches,
+					Tags:         loc.Tags,
+					Path:         path,
+					Ext:          indexer.GetExt(path),
+					Encoding:     encoding,
+					Size:         file.Size,
+				},
+				Content: text,
+			}
+
+			bar.Total = bar.Total + 1
+
+			queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
+		}
+	}
 }
 
 // How to detect encoding

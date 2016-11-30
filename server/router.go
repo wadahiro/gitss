@@ -75,6 +75,7 @@ func initRouter(config *config.Config, indexer indexer.Indexer) {
 	// r.GET("/issues", react.Handle)
 
 	r.Use(static.Serve("/", BinaryFileSystem("assets")))
+	r.Use(static.Serve("/search", BinaryFileSystem("assets")))
 
 	r.Run(":" + strconv.Itoa(config.Port))
 }

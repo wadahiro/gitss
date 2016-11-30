@@ -14,6 +14,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"regexp"
+
 	"github.com/codegangsta/cli"
 )
 
@@ -27,14 +29,13 @@ type Config struct {
 	IndexedDir  string
 	Port        int
 	IndexerType string
-	SizeLimit   int64
 	Schedule    string
 	Debug       bool
 	settings    []SyncSetting
 }
 
 func NewConfig(c *cli.Context, debug bool) *Config {
-	port := c.GlobalInt("port")
+	port := c.Int("port")
 	dataDir := c.GlobalString("data")
 	gitDataDir := dataDir + "/" + "git"
 	confDir := dataDir + "/" + "conf"
@@ -42,9 +43,7 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 
 	indexerType := c.GlobalString("indexer")
 
-	sizeLimit := c.Int64("sizeLimit")
-
-	schedule := c.GlobalString("schedule")
+	schedule := c.String("schedule")
 
 	config := &Config{
 		DataDir:     dataDir,
@@ -53,7 +52,6 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		IndexedDir:  indexedDir,
 		Port:        port,
 		IndexerType: indexerType,
-		SizeLimit:   sizeLimit,
 		Schedule:    schedule,
 		Debug:       false,
 	}
@@ -73,21 +71,15 @@ func (c *Config) init() {
 	if err := os.MkdirAll(c.IndexedDir, 0644); err != nil {
 		log.Fatalln(err)
 	}
-	c.refreshSettings()
+	c.reloadSettings()
 }
 
 func (c *Config) Sync() {
-	c.refreshSettings()
-}
-
-func (c *Config) refreshSettings() error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	c.SyncAllSCM()
 	c.reloadSettings()
-
-	return nil
+	c.SyncAllSCM()
 }
 
 func (c *Config) SyncAllSCM() error {
@@ -95,9 +87,9 @@ func (c *Config) SyncAllSCM() error {
 		setting := c.settings[i]
 		err := setting.SyncSCM()
 
-		if err == nil {
-			// write!
-			c.writeSetting(setting.GetName())
+		if err != nil {
+			log.Printf("Failed to sync scm for %s. %v", setting.GetName(), err)
+			// continue for other sync settings
 		}
 	}
 	return nil
@@ -106,10 +98,10 @@ func (c *Config) SyncAllSCM() error {
 func (c *Config) SyncSCM(organization string) error {
 	setting, ok := c.findSyncSetting(organization)
 	if ok {
+		// sync with memory
 		err := setting.SyncSCM()
-		if err == nil {
-			// write!
-			c.writeSetting(setting.GetName())
+		if err != nil {
+			return err
 		}
 		return nil
 	}
@@ -165,6 +157,25 @@ func (c *Config) FindSetting(organization string) (SyncSetting, bool) {
 	return nil, false
 }
 
+func (c *Config) GetSizeLimit(organization, project, repository string) int64 {
+	setting, ok := c.FindSetting(organization)
+	if ok {
+		ps, ok := setting.FindProjectSetting(project)
+		if ok {
+			rs, ok := setting.FindRepositorySetting(project, repository)
+			if ok {
+				if rs.SizeLimit > 0 {
+					return rs.SizeLimit
+				}
+			}
+			if ps.SizeLimit > 0 {
+				return ps.SizeLimit
+			}
+		}
+	}
+	return setting.GetSizeLimit()
+}
+
 type SyncSetting interface {
 	GetName() string
 	GetProjects() []ProjectSetting
@@ -173,13 +184,20 @@ type SyncSetting interface {
 	AddRepository(project string, repositoryUrl string) error
 	FindProjectSetting(project string) (*ProjectSetting, bool)
 	FindRepositorySetting(project string, repository string) (*RepositorySetting, bool)
-	JSON() (string, error)
+	JSON() ([]byte, error)
+	GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp)
+	GetSizeLimit() int64
 }
 
 type OrganizationSetting struct {
-	Name     string            `json:"name"`
-	Projects []ProjectSetting  `json:"projects,omitempty"`
-	Scm      map[string]string `json:"scm,omitempty"`
+	Name            string            `json:"name"`
+	Projects        []ProjectSetting  `json:"projects,omitempty"`
+	Scm             map[string]string `json:"scm,omitempty"`
+	SizeLimit       int64             `json:"sizeLimit,omitempty"`
+	IncludeBranches string            `json:"includeBranches,omitempty"`
+	ExcludeBranches string            `json:"excludeBranches,omitempty"`
+	IncludeTags     string            `json:"includeTags,omitempty"`
+	ExcludeTags     string            `json:"excludeTags,omitempty"`
 }
 
 func (o *OrganizationSetting) GetName() string {
@@ -248,22 +266,87 @@ func (o *OrganizationSetting) FindRepositorySetting(project string, repository s
 	return nil, false
 }
 
-func (o *OrganizationSetting) JSON() (string, error) {
+func (o *OrganizationSetting) JSON() ([]byte, error) {
 	b, err := json.MarshalIndent(o, "", "  ")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(b), err
+	return b, err
+}
+
+func (o *OrganizationSetting) GetSizeLimit() int64 {
+	return o.SizeLimit
+}
+
+func (o *OrganizationSetting) GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp) {
+
+	ps, has := o.FindProjectSetting(project)
+	if has {
+		rs, has := o.FindRepositorySetting(project, repository)
+		if has {
+			includeBranches := adaptRegex(o.IncludeBranches, ps.IncludeBranches, rs.IncludeBranches, true)
+			excludeBranches := adaptRegex(o.ExcludeBranches, ps.ExcludeBranches, rs.ExcludeBranches, false)
+			includeTags := adaptRegex(o.IncludeTags, ps.IncludeTags, rs.IncludeTags, true)
+			excludeTags := adaptRegex(o.ExcludeTags, ps.ExcludeTags, rs.ExcludeTags, false)
+
+			return includeBranches, excludeBranches, includeTags, excludeTags
+		}
+	}
+	return MATCH_ALL, nil, MATCH_ALL, nil
+}
+
+var MATCH_ALL = regexp.MustCompile(".*")
+
+func adaptRegex(os string, ps string, rs string, isInclude bool) *regexp.Regexp {
+	if rs != "" {
+		r, err := regexp.Compile(rs)
+		if err != nil {
+			log.Printf("Failed to parse regex pattern: %s", rs)
+		} else {
+			return r
+		}
+	}
+	if ps != "" {
+		r, err := regexp.Compile(ps)
+		if err != nil {
+			log.Printf("Failed to parse regex pattern: %s", ps)
+		} else {
+			return r
+		}
+	}
+	if os != "" {
+		r, err := regexp.Compile(os)
+		if err != nil {
+			log.Printf("Failed to parse regex pattern: %s", os)
+		} else {
+			return r
+		}
+	}
+	if isInclude {
+		return MATCH_ALL
+	} else {
+		return nil
+	}
 }
 
 type ProjectSetting struct {
-	Name         string              `json:"name"`
-	Repositories []RepositorySetting `json:"repositories"`
+	Name            string              `json:"name"`
+	Repositories    []RepositorySetting `json:"repositories"`
+	SizeLimit       int64               `json:"sizeLimit,omitempty"`
+	IncludeBranches string              `json:"includeBranches,omitempty"`
+	ExcludeBranches string              `json:"excludeBranches,omitempty"`
+	IncludeTags     string              `json:"includeTags,omitempty"`
+	ExcludeTags     string              `json:"excludeTags,omitempty"`
 }
 
 type RepositorySetting struct {
-	Url  string `json:"url"`
-	name string `json:"-"`
+	Url             string `json:"url"`
+	name            string `json:"-"`
+	SizeLimit       int64  `json:"sizeLimit,omitempty"`
+	IncludeBranches string `json:"includeBranches,omitempty"`
+	ExcludeBranches string `json:"excludeBranches,omitempty"`
+	IncludeTags     string `json:"includeTags,omitempty"`
+	ExcludeTags     string `json:"excludeTags,omitempty"`
 }
 
 func (r *RepositorySetting) GetName() string {
@@ -319,7 +402,8 @@ func (c *Config) readIndexed(organization string, project string, repository str
 	return indexed
 }
 
-func (c *Config) AddSetting(organization string, scmOptions map[string]string) error {
+func (c *Config) AddSetting(organization string, scmOptions map[string]string,
+	sizeLimit int64, includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -329,8 +413,13 @@ func (c *Config) AddSetting(organization string, scmOptions map[string]string) e
 	}
 
 	setting = &OrganizationSetting{
-		Name: organization,
-		Scm:  scmOptions,
+		Name:            organization,
+		Scm:             scmOptions,
+		SizeLimit:       sizeLimit,
+		IncludeBranches: includeBranches,
+		ExcludeBranches: excludeBranches,
+		IncludeTags:     includeTags,
+		ExcludeTags:     excludeTags,
 	}
 	c.settings = append(c.settings, setting)
 
@@ -340,7 +429,8 @@ func (c *Config) AddSetting(organization string, scmOptions map[string]string) e
 	return nil
 }
 
-func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string) error {
+func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string,
+	sizeLimit int64, includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -354,7 +444,12 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 					Name: project,
 					Repositories: []RepositorySetting{
 						RepositorySetting{
-							Url: url,
+							Url:             url,
+							SizeLimit:       sizeLimit,
+							IncludeBranches: includeBranches,
+							ExcludeBranches: excludeBranches,
+							IncludeTags:     includeTags,
+							ExcludeTags:     excludeTags,
 						},
 					},
 				},
@@ -403,7 +498,8 @@ func (c *Config) DeleteIndexed(organization string, project string, repository s
 func (c *Config) writeSetting(organization string) error {
 	setting, ok := c.findSyncSetting(organization)
 	if ok {
-		content, _ := json.MarshalIndent(setting, "", "  ")
+		// content, _ := json.MarshalIndent(setting, "", "  ")
+		content, _ := setting.JSON()
 		fileName := fmt.Sprintf("%s/%s.json", c.ConfDir, organization)
 		return ioutil.WriteFile(fileName, content, os.ModePerm)
 	} else {
