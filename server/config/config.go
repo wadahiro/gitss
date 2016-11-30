@@ -29,7 +29,6 @@ type Config struct {
 	IndexedDir  string
 	Port        int
 	IndexerType string
-	SizeLimit   int64
 	Schedule    string
 	Debug       bool
 	settings    []SyncSetting
@@ -44,8 +43,6 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 
 	indexerType := c.GlobalString("indexer")
 
-	sizeLimit := c.Int64("sizeLimit")
-
 	schedule := c.String("schedule")
 
 	config := &Config{
@@ -55,7 +52,6 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		IndexedDir:  indexedDir,
 		Port:        port,
 		IndexerType: indexerType,
-		SizeLimit:   sizeLimit,
 		Schedule:    schedule,
 		Debug:       false,
 	}
@@ -161,6 +157,25 @@ func (c *Config) FindSetting(organization string) (SyncSetting, bool) {
 	return nil, false
 }
 
+func (c *Config) GetSizeLimit(organization, project, repository string) int64 {
+	setting, ok := c.FindSetting(organization)
+	if ok {
+		ps, ok := setting.FindProjectSetting(project)
+		if ok {
+			rs, ok := setting.FindRepositorySetting(project, repository)
+			if ok {
+				if rs.SizeLimit > 0 {
+					return rs.SizeLimit
+				}
+			}
+			if ps.SizeLimit > 0 {
+				return ps.SizeLimit
+			}
+		}
+	}
+	return setting.GetSizeLimit()
+}
+
 type SyncSetting interface {
 	GetName() string
 	GetProjects() []ProjectSetting
@@ -171,12 +186,14 @@ type SyncSetting interface {
 	FindRepositorySetting(project string, repository string) (*RepositorySetting, bool)
 	JSON() ([]byte, error)
 	GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp)
+	GetSizeLimit() int64
 }
 
 type OrganizationSetting struct {
 	Name            string            `json:"name"`
 	Projects        []ProjectSetting  `json:"projects,omitempty"`
 	Scm             map[string]string `json:"scm,omitempty"`
+	SizeLimit       int64             `json:"sizeLimit,omitempty"`
 	IncludeBranches string            `json:"includeBranches,omitempty"`
 	ExcludeBranches string            `json:"excludeBranches,omitempty"`
 	IncludeTags     string            `json:"includeTags,omitempty"`
@@ -257,6 +274,10 @@ func (o *OrganizationSetting) JSON() ([]byte, error) {
 	return b, err
 }
 
+func (o *OrganizationSetting) GetSizeLimit() int64 {
+	return o.SizeLimit
+}
+
 func (o *OrganizationSetting) GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp) {
 
 	ps, has := o.FindProjectSetting(project)
@@ -311,6 +332,7 @@ func adaptRegex(os string, ps string, rs string, isInclude bool) *regexp.Regexp 
 type ProjectSetting struct {
 	Name            string              `json:"name"`
 	Repositories    []RepositorySetting `json:"repositories"`
+	SizeLimit       int64               `json:"sizeLimit,omitempty"`
 	IncludeBranches string              `json:"includeBranches,omitempty"`
 	ExcludeBranches string              `json:"excludeBranches,omitempty"`
 	IncludeTags     string              `json:"includeTags,omitempty"`
@@ -320,6 +342,7 @@ type ProjectSetting struct {
 type RepositorySetting struct {
 	Url             string `json:"url"`
 	name            string `json:"-"`
+	SizeLimit       int64  `json:"sizeLimit,omitempty"`
 	IncludeBranches string `json:"includeBranches,omitempty"`
 	ExcludeBranches string `json:"excludeBranches,omitempty"`
 	IncludeTags     string `json:"includeTags,omitempty"`
@@ -380,7 +403,7 @@ func (c *Config) readIndexed(organization string, project string, repository str
 }
 
 func (c *Config) AddSetting(organization string, scmOptions map[string]string,
-	includeBranches, excludeBranches, includeTags, excludeTags string) error {
+	sizeLimit int64, includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -392,6 +415,7 @@ func (c *Config) AddSetting(organization string, scmOptions map[string]string,
 	setting = &OrganizationSetting{
 		Name:            organization,
 		Scm:             scmOptions,
+		SizeLimit:       sizeLimit,
 		IncludeBranches: includeBranches,
 		ExcludeBranches: excludeBranches,
 		IncludeTags:     includeTags,
@@ -406,7 +430,7 @@ func (c *Config) AddSetting(organization string, scmOptions map[string]string,
 }
 
 func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string,
-	includeBranches, excludeBranches, includeTags, excludeTags string) error {
+	sizeLimit int64, includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -421,6 +445,7 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 					Repositories: []RepositorySetting{
 						RepositorySetting{
 							Url:             url,
+							SizeLimit:       sizeLimit,
 							IncludeBranches: includeBranches,
 							ExcludeBranches: excludeBranches,
 							IncludeTags:     includeTags,

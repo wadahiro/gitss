@@ -42,11 +42,6 @@ func main() {
 					Value: 3000,
 					Usage: "port number",
 				},
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
-				},
 				cli.StringFlag{
 					Name:  "schedule",
 					Value: "0 */10 * * * *",
@@ -120,6 +115,11 @@ func main() {
 							Value: "",
 							Usage: "Set password for the bitbucket server if you'd like to use Basic Authentication",
 						},
+						cli.Int64Flag{
+							Name:  "sizeLimit",
+							Value: 1024 * 1024, //1MB
+							Usage: "Indexing limit file size (byte)",
+						},
 						cli.StringFlag{
 							Name:  "include-projects",
 							Value: ".*",
@@ -166,11 +166,6 @@ func main() {
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.IntFlag{
-			Name:  "port",
-			Value: 3000,
-			Usage: "port number",
-		},
 		cli.StringFlag{
 			Name:  "data",
 			Value: "./data",
@@ -248,12 +243,14 @@ func AddGitRepository(c *cli.Context) error {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
+	sizeLimit := c.Int64("sizeLimit")
+
 	includeBranches := regex(c.String("include-branches"))
 	excludeBranches := regex(c.String("exclude-branches"))
 	includeTags := regex(c.String("include-tags"))
 	excludeTags := regex(c.String("exclude-tags"))
 
-	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil, includeBranches, excludeBranches, includeTags, excludeTags)
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil, sizeLimit, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
 		return cli.NewExitError(err, 1)
 	}
@@ -274,6 +271,7 @@ func AddBitbucketServerSetting(c *cli.Context) error {
 
 	user := c.String("user")
 	password := c.String("password")
+	sizeLimit := c.Int64("sizeLimit")
 	includeProjects := regex(c.String("include-projects"))
 	excludeProjects := regex(c.String("exclude-projects"))
 	includeRepositories := regex(c.String("include-repositories"))
@@ -293,7 +291,7 @@ func AddBitbucketServerSetting(c *cli.Context) error {
 	scmOptions["includeRepositories"] = includeRepositories
 	scmOptions["excludeRepositories"] = excludeRepositories
 
-	err := config.AddSetting(organization, scmOptions, includeBranches, excludeBranches, includeTags, excludeTags)
+	err := config.AddSetting(organization, scmOptions, sizeLimit, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
 		return cli.NewExitError(err, 1)
 	}

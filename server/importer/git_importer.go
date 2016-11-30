@@ -61,13 +61,16 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, repo.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
 
+	// get sizeLimit for this repository
+	sizeLimit := g.config.GetSizeLimit(organization, project, repo.Repository)
+
 	// progress bar
 	bar := pb.StartNew(0)
 	bar.ShowPercent = true
 
 	start := time.Now()
 
-	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap)
+	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap, sizeLimit)
 	if err != nil {
 		log.Printf("Failed to index. %+v", err)
 		return
@@ -123,7 +126,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository))
 }
 
-func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap) error {
+func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap, sizeLimit int64) error {
 	// collect create file entries
 	createBranches := make(map[string]string)
 	updateBranches := make(map[string][2]string)
@@ -168,7 +171,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	queue := make(chan indexer.FileIndexOperation, 100)
 
 	// process
-	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags)
+	g.UpsertIndex(queue, bar, repo, createBranches, createTags, updateBranches, updateTags, sizeLimit)
 
 	callBatch := func(operations []indexer.FileIndexOperation) {
 		err := g.indexer.BatchFileIndex(operations)
@@ -224,7 +227,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	return nil
 }
 
-func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string) error {
+func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string, sizeLimit int64) error {
 	addFiles, err := r.GetFileEntriesMap(branchMap, tagMap)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to get file entries. branches: %v tags: %v", branchMap, tagMap)
@@ -240,8 +243,8 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.handleAddFiles(queue, bar, r, addFiles)
-		g.handleAddFiles(queue, bar, r, updateAddFiles)
+		g.handleAddFiles(queue, bar, r, addFiles, sizeLimit)
+		g.handleAddFiles(queue, bar, r, updateAddFiles, sizeLimit)
 		g.handleDelFiles(queue, bar, r, delFiles)
 	}()
 
@@ -253,7 +256,7 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb
 	return nil
 }
 
-func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile) {
+func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile, sizeLimit int64) {
 	if len(addFiles) == 0 {
 		return
 	}
@@ -268,7 +271,7 @@ func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar 
 
 	for blob, file := range addFiles {
 		// check size
-		if file.Size > g.config.SizeLimit {
+		if sizeLimit > 0 && file.Size > sizeLimit {
 			continue
 		}
 
