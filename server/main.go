@@ -37,19 +37,33 @@ func main() {
 			Usage:  "Run GitSS",
 			Action: RunServer,
 			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "port",
+					Value: 3000,
+					Usage: "port number",
+				},
 				cli.Int64Flag{
 					Name:  "sizeLimit",
 					Value: 1024 * 1024, //1MB
 					Usage: "Indexing limit file size",
 				},
+				cli.StringFlag{
+					Name:  "schedule",
+					Value: "0 */10 * * * *",
+					Usage: "Sync schedule",
+				},
 			},
 		},
 		{
 			Name:      "sync",
-			Usage:     "Sync all git repositories",
-			ArgsUsage: "",
-			Action:    SyncAll,
+			Usage:     "Sync git repository",
+			ArgsUsage: "[ORGANIZATION] [PROJECT] [REPOSITORY]",
+			Action:    Sync,
 			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "all",
+					Usage: "Sync all git repositories",
+				},
 				cli.Int64Flag{
 					Name:  "sizeLimit",
 					Value: 1024 * 1024, //1MB
@@ -59,8 +73,8 @@ func main() {
 		},
 		{
 			Name:      "add",
-			Usage:     "Add a git repository",
-			ArgsUsage: "",
+			Usage:     "Add a sync setting",
+			ArgsUsage: "ORGANIZATION PROJECT GIT_REPOSITORY_URL",
 			Action:    AddGitRepository,
 		},
 		{
@@ -71,7 +85,7 @@ func main() {
 				{
 					Name:      "add",
 					Usage:     "Add a sync setting with the bitbucket server",
-					ArgsUsage: "[organization name] [bitbucket server url] --user=[username] --password=[password] --include-projects=<...> --exclude-projects=<...> --include-repositories=<...> --exclude-repositories=<...> --include-branches=<...> --exclude-branches=<...> --include-tags=<...> --exclude-tags=<...>",
+					ArgsUsage: "ORGANIZATION BITBUCKET_SERVER_URL",
 					Action:    AddBitbucketServerSetting,
 					Flags: []cli.Flag{
 						cli.StringFlag{
@@ -91,7 +105,7 @@ func main() {
 						},
 						cli.StringFlag{
 							Name:  "exclude-projects",
-							Value: ".*",
+							Value: "",
 							Usage: "Set regex pattern of the name of the projects which you'd like to exclude",
 						},
 						cli.StringFlag{
@@ -101,7 +115,7 @@ func main() {
 						},
 						cli.StringFlag{
 							Name:  "exclude-repositories",
-							Value: ".*",
+							Value: "",
 							Usage: "Set regex pattern of the name of the repositories which you'd like to exclude",
 						},
 						cli.StringFlag{
@@ -111,7 +125,7 @@ func main() {
 						},
 						cli.StringFlag{
 							Name:  "exclude-branches",
-							Value: ".*",
+							Value: "",
 							Usage: "Set regex pattern of the name of the branches which you'd like to exclude",
 						},
 						cli.StringFlag{
@@ -121,23 +135,10 @@ func main() {
 						},
 						cli.StringFlag{
 							Name:  "exclude-tags",
-							Value: ".*",
+							Value: "",
 							Usage: "Set regex pattern of the name of the tags which you'd like to exclude",
 						},
 					},
-				},
-			},
-		},
-		{
-			Name:      "import",
-			Usage:     "Import a git repository",
-			ArgsUsage: "[organization name] [project name] [git repository url]",
-			Action:    ImportGitRepository,
-			Flags: []cli.Flag{
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
 				},
 			},
 		},
@@ -157,11 +158,6 @@ func main() {
 			Name:  "indexer",
 			Value: "bleve",
 			Usage: "Indexer implementation",
-		},
-		cli.StringFlag{
-			Name:  "schedule",
-			Value: "0 */10 * * * *",
-			Usage: "Sync schedule",
 		},
 	}
 	app.Run(args)
@@ -190,22 +186,38 @@ func RunServer(c *cli.Context) {
 	initRouter(config, indexer)
 }
 
-func SyncAll(c *cli.Context) {
+func Sync(c *cli.Context) error {
 	debugMode := isDebugMode()
+
+	all := c.Bool("all")
 
 	config := config.NewConfig(c, debugMode)
 	reader := repo.NewGitRepoReader(config)
 	indexer := newIndexer(config, reader)
 	importer := importer.NewGitImporter(config, indexer)
 
-	service.RunSync(config, importer)
+	if all {
+		service.RunSyncAll(config, importer)
+
+	} else {
+		if len(c.Args()) != 3 {
+			return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
+		}
+
+		organization := c.Args()[0]
+		project := c.Args()[1]
+		repository := c.Args()[2]
+
+		service.RunSync(config, importer, organization, project, repository)
+	}
+	return nil
 }
 
-func AddGitRepository(c *cli.Context) {
+func AddGitRepository(c *cli.Context) error {
 	debugMode := isDebugMode()
 
 	if len(c.Args()) != 3 {
-		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
+		return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
 	}
 
 	config := config.NewConfig(c, debugMode)
@@ -218,6 +230,7 @@ func AddGitRepository(c *cli.Context) {
 	if err != nil {
 		log.Println(err)
 	}
+	return nil
 }
 
 func AddBitbucketServerSetting(c *cli.Context) {
@@ -261,39 +274,6 @@ func AddBitbucketServerSetting(c *cli.Context) {
 func regex(pattern string) string {
 	regexp.MustCompile(pattern)
 	return pattern
-}
-
-func ImportGitRepository(c *cli.Context) {
-	debugMode := isDebugMode()
-
-	if len(c.Args()) != 3 {
-		log.Fatalln("Please specified [organization name] [project name] [git repository url]")
-	}
-
-	config := config.NewConfig(c, debugMode)
-
-	organization := c.Args()[0]
-	projectName := c.Args()[1]
-	gitRepoUrl := c.Args()[2]
-
-	log.Println("-------------- GitSS Import Git Repository -------------")
-	log.Println("VERSION: ", Version)
-	log.Println("COMMIT_HASH: ", CommitHash)
-	log.Println("DATA_DIR: ", config.DataDir)
-	log.Println("INDEXER_TYPE: ", config.IndexerType)
-	log.Println("DEBUG_MODE: ", config.Debug)
-	log.Println("ORGANIZATION_NAME: ", organization)
-	log.Println("PROJECT_NAME: ", projectName)
-	log.Println("GIT_REPOSITORY_URL: ", gitRepoUrl)
-	log.Println("SIZE_LIMIT: ", config.SizeLimit)
-	log.Println("--------------------------------------------------------")
-
-	config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
-
-	reader := repo.NewGitRepoReader(config)
-	indexer := newIndexer(config, reader)
-	importer := importer.NewGitImporter(config, indexer)
-	importer.Run(organization, projectName, gitRepoUrl)
 }
 
 func isDebugMode() bool {

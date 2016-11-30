@@ -36,7 +36,7 @@ type Config struct {
 }
 
 func NewConfig(c *cli.Context, debug bool) *Config {
-	port := c.GlobalInt("port")
+	port := c.Int("port")
 	dataDir := c.GlobalString("data")
 	gitDataDir := dataDir + "/" + "git"
 	confDir := dataDir + "/" + "conf"
@@ -46,7 +46,7 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 
 	sizeLimit := c.Int64("sizeLimit")
 
-	schedule := c.GlobalString("schedule")
+	schedule := c.String("schedule")
 
 	config := &Config{
 		DataDir:     dataDir,
@@ -75,21 +75,15 @@ func (c *Config) init() {
 	if err := os.MkdirAll(c.IndexedDir, 0644); err != nil {
 		log.Fatalln(err)
 	}
-	c.refreshSettings()
+	c.reloadSettings()
 }
 
 func (c *Config) Sync() {
-	c.refreshSettings()
-}
-
-func (c *Config) refreshSettings() error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	c.SyncAllSCM()
 	c.reloadSettings()
-
-	return nil
+	c.SyncAllSCM()
 }
 
 func (c *Config) SyncAllSCM() error {

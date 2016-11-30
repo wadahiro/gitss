@@ -33,7 +33,7 @@ func RunSyncScheduler(config *config.Config, importer *importer.GitImporter) {
 		log.Println("Start sync job.")
 		defer log.Println("End Start sync job.")
 
-		RunSync(config, importer)
+		RunSyncAll(config, importer)
 	}
 
 	scheduler.AddFunc(spec, job)
@@ -42,7 +42,33 @@ func RunSyncScheduler(config *config.Config, importer *importer.GitImporter) {
 	fmt.Println("Started sync schduler.")
 }
 
-func RunSync(config *config.Config, importer *importer.GitImporter) {
+func RunSync(config *config.Config, importer *importer.GitImporter, organization, project, repository string) {
+	config.Sync()
+
+	setting, ok := config.FindSetting(organization)
+	if !ok {
+		log.Printf("Not found organization: %s\n", organization)
+		return
+	}
+
+	projectSetting, ok := setting.FindProjectSetting(project)
+	if !ok {
+		log.Printf("Not found project: %v\n", project)
+		return
+	}
+
+	repositorySetting, ok := setting.FindRepositorySetting(project, repository)
+	if !ok {
+		log.Printf("Not found repository: %s\n", repository)
+		return
+	}
+
+	log.Printf("Sync for %s:%s/%s\n", setting.GetName(), projectSetting.Name, repositorySetting.GetName())
+
+	importer.Run(setting.GetName(), projectSetting.Name, repositorySetting.Url)
+}
+
+func RunSyncAll(config *config.Config, importer *importer.GitImporter) {
 	config.Sync()
 
 	settings := config.GetSettings()

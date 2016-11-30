@@ -93,15 +93,18 @@ func (b *BitbucketOrganizationSetting) JSON() ([]byte, error) {
 }
 
 func regex(pattern string, isInclude bool) *regexp.Regexp {
-	r, err := regexp.Compile(pattern)
-	if err != nil {
-		if isInclude {
-			return MATCH_ALL
-		} else {
-			return nil
+	if pattern != "" {
+		r, err := regexp.Compile(pattern)
+		if err == nil {
+			return r
 		}
 	}
-	return r
+
+	if isInclude {
+		return MATCH_ALL
+	} else {
+		return nil
+	}
 }
 
 func (b *BitbucketOrganizationSetting) GetRefFilters(project string, repository string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp) {
@@ -149,16 +152,22 @@ func (b *BitbucketOrganizationSetting) SyncSCM() error {
 			// include/exclude project
 			if !includeProjects.MatchString(r.Project.Key) ||
 				(excludeProjects != nil && excludeProjects.MatchString(r.Project.Key)) {
+				log.Printf("%s:%s is ignored.\n", b.GetName(), r.Project.Key)
 				continue
 			}
+
+			// log.Println("project ok")
 
 			// include/exclude repository
 			rs := RepositorySetting{Url: cloneUrl}
 			rn := rs.GetName()
 			if !includeRepositories.MatchString(rn) ||
 				(excludeRepositories != nil && excludeRepositories.MatchString(rn)) {
+				log.Printf("%s:%s/%s is ignored.\n", b.GetName(), r.Project.Key, rn)
 				continue
 			}
+
+			// log.Println("repository ok")
 
 			p, ok := projects[r.Project.Key]
 			if !ok {
