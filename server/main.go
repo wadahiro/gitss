@@ -64,11 +64,6 @@ func main() {
 					Name:  "all",
 					Usage: "Sync all git repositories",
 				},
-				cli.Int64Flag{
-					Name:  "sizeLimit",
-					Value: 1024 * 1024, //1MB
-					Usage: "Indexing limit file size",
-				},
 			},
 		},
 		{
@@ -76,6 +71,33 @@ func main() {
 			Usage:     "Add a sync setting",
 			ArgsUsage: "ORGANIZATION PROJECT GIT_REPOSITORY_URL",
 			Action:    AddGitRepository,
+			Flags: []cli.Flag{
+				cli.Int64Flag{
+					Name:  "sizeLimit",
+					Value: 1024 * 1024, //1MB
+					Usage: "Indexing limit file size (byte)",
+				},
+				cli.StringFlag{
+					Name:  "include-branches",
+					Value: ".*",
+					Usage: "Set regex pattern of the name of the branches which you'd like to include",
+				},
+				cli.StringFlag{
+					Name:  "exclude-branches",
+					Value: "",
+					Usage: "Set regex pattern of the name of the branches which you'd like to exclude",
+				},
+				cli.StringFlag{
+					Name:  "include-tags",
+					Value: ".*",
+					Usage: "Set regex pattern of the name of the tags which you'd like to include",
+				},
+				cli.StringFlag{
+					Name:  "exclude-tags",
+					Value: "",
+					Usage: "Set regex pattern of the name of the tags which you'd like to exclude",
+				},
+			},
 		},
 		{
 			Name:      "bitbucket",
@@ -226,24 +248,30 @@ func AddGitRepository(c *cli.Context) error {
 	projectName := c.Args()[1]
 	gitRepoUrl := c.Args()[2]
 
-	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil)
+	includeBranches := regex(c.String("include-branches"))
+	excludeBranches := regex(c.String("exclude-branches"))
+	includeTags := regex(c.String("include-tags"))
+	excludeTags := regex(c.String("exclude-tags"))
+
+	err := config.AddRepositorySetting(organization, projectName, gitRepoUrl, nil, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
-		log.Println(err)
+		return cli.NewExitError(err, 1)
 	}
 	return nil
 }
 
-func AddBitbucketServerSetting(c *cli.Context) {
+func AddBitbucketServerSetting(c *cli.Context) error {
 	debugMode := isDebugMode()
 
 	if len(c.Args()) != 2 {
-		log.Fatalln("Please specified [organization name] [bitbucket server url]")
+		return cli.NewExitError("Please specified "+c.Command.ArgsUsage, 1)
 	}
 
 	config := config.NewConfig(c, debugMode)
 
 	organization := c.Args()[0]
 	bitbucketUrl := c.Args()[1]
+
 	user := c.String("user")
 	password := c.String("password")
 	includeProjects := regex(c.String("include-projects"))
@@ -267,8 +295,9 @@ func AddBitbucketServerSetting(c *cli.Context) {
 
 	err := config.AddSetting(organization, scmOptions, includeBranches, excludeBranches, includeTags, excludeTags)
 	if err != nil {
-		log.Println(err)
+		return cli.NewExitError(err, 1)
 	}
+	return nil
 }
 
 func regex(pattern string) string {

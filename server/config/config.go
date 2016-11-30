@@ -380,7 +380,7 @@ func (c *Config) readIndexed(organization string, project string, repository str
 }
 
 func (c *Config) AddSetting(organization string, scmOptions map[string]string,
-	includeBranches string, excludeBranches string, includeTags string, excludeTags string) error {
+	includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -405,7 +405,8 @@ func (c *Config) AddSetting(organization string, scmOptions map[string]string,
 	return nil
 }
 
-func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string) error {
+func (c *Config) AddRepositorySetting(organization string, project string, url string, scmOptions map[string]string,
+	includeBranches, excludeBranches, includeTags, excludeTags string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -419,7 +420,11 @@ func (c *Config) AddRepositorySetting(organization string, project string, url s
 					Name: project,
 					Repositories: []RepositorySetting{
 						RepositorySetting{
-							Url: url,
+							Url:             url,
+							IncludeBranches: includeBranches,
+							ExcludeBranches: excludeBranches,
+							IncludeTags:     includeTags,
+							ExcludeTags:     excludeTags,
 						},
 					},
 				},
