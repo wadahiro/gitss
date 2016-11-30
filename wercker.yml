@@ -74,4 +74,7 @@ deploy:
         file: gitss-${RELEASE_TAG}-linux-amd64.tar.gz
     - wercker/github-upload-asset:
         token: $GITHUB_TOKEN
+        file: gitss-${RELEASE_TAG}-darwin-amd64.tar.gz
+    - wercker/github-upload-asset:
+        token: $GITHUB_TOKEN
         file: gitss-${RELEASE_TAG}-windows-amd64.tar.gz
