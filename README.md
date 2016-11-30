@@ -18,21 +18,115 @@ This repository is heavily under development and unstable now.
 
 ## How to use
 
-1. Download binary file for your environment in the [Release Page](https://github.com/wadahiro/gitss/releases). Currently, you can download binary files for Linux(64bit) and Windows(64bit). 
+### Requirements
 
-2. To import git repository, run `gitss` command with `import` option as follows.
+* [Git](https://git-scm.com/)
+
+GitSS use `git` command internaly. So you need to set `PATH` environment variable to use `git` command.
+
+### Install
+
+Download binary file for your environment in the [Release Page](https://github.com/wadahiro/gitss/releases). Currently, you can download binary files for Linux(64bit), Darwin(64bit) and Windows(64bit). 
+
+### Add Setting for a git repository
+
+To add sync setting, run `gitss add` command as follows.
 
  ```bash
-./gitss import yourOrgName yourProjectName http://your-git-site/your-git-repo.git
+./gitss add yourOrgName yourProjectName http://your-git-site/your-git-repo.git
  ```
 
-3. Then you just start with server mode. Run `gitss` command with `server` option as follows.
+This will create `data/conf/yourOrgName.json` file as follows. Using this setting file, GitSS do syncing with remote git repository and indexing the contents automatically.
+
+ ```json
+{
+  "name": "yourOrgName",
+  "projects": [
+    {
+      "name": "yourProjectName",
+      "repositories": [
+        {
+          "url": "http://your-git-site/your-git-repo.git",
+          "sizeLimit": 1048576,
+          "includeBranches": ".*",
+          "includeTags": ".*"
+        }
+      ]
+    }
+  ]
+}
+ ```
+
+Also there are more options for `gitss add`. Please check `gitss add --help`.
+
+
+### Add Setting for a Bitbucket server
+
+If you use Bitbucket server, you can sync and index the all repositories easily.
+run `gitss bitbucket add` command as follows.
+
+ ```bash
+./gitss bitbucket add yourOrgName http://your-bitbucket-server-site/bitbucket --user=yourId --password=yourPassword
+ ```
+
+This will create `data/conf/yourOrgName.json` file as follows. Using this setting file, GitSS fetch all repositories from Bitbucket server, then do syncing git repositories and indexing.
+
+ ```json
+{
+  "name": "yourOrgName",
+  "scm": {
+    "excludeProjects": "",
+    "excludeRepositories": "",
+    "includeProjects": ".*",
+    "includeRepositories": ".*",
+    "password": "yourPassword",
+    "type": "bitbucket",
+    "url": "http://your-bitbucket-server-site/bitbucket",
+    "user": "yourId"
+  },
+  "sizeLimit": 1048576,
+  "includeBranches": ".*",
+  "includeTags": ".*"
+}
+ ```
+
+Also there are more options for `gitss bitbucket add`. Please check `gitss bitbucket add --help`.
+
+
+### Manual syncing & indexing
+
+After adding setting file, run `gitss sync` command with `--all` option as follows. GitSS read all setting files and sync git repository and index the contents.
+
+ ```bash
+./gitss sync --all
+ ```
+
+ If you'd like to sync one repository only, you can use `gitss sync` command as follows.
+
+ ```bash
+./gitss sync yourOrgName yourProjectName your-git-repo
+ ```
+
+### Run server
+
+Run `gitss server` command as follows. Then open http://your-server:3000 . In addition, the sync scheduler is started when starting GitSS server. The scheduler do syncing git repository and indexing the contents automatically.
 
  ```bash
 ./gitss server
  ```
 
-4. Open http://your-server:3000
+If you'd like to change the port (Default: 3000), you can use `--port` option.
+
+ ```bash
+./gitss server --port=5000
+ ```
+
+If you'd like to change the sync schedule (Default: 0 */10 * * * *), you can use `--schedule` option as follows.
+
+ ```bash
+./gitss server --schedule="0 */30 * * * *"
+ ```
+
 
 ## Development
 
@@ -88,9 +182,9 @@ npm run devserver & fresh
 
 Run webpack with production mode, go-bindata and go build in turn. All you have to do is run `npm run build`. The artifact is created under `./dist` directory.
 
-```bash
+ ```bash
 npm run build
-```
+ ```
 
 ## License
 
