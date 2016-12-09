@@ -1,3 +1,4 @@
+// Package repo provides handling git repository.
 package repo
 
 import (
@@ -335,6 +336,10 @@ func (r *GitRepo) GetFileEntriesMapByRefs(includeBranches []string, includeTags 
 	return r.GetFileEntriesMap(branchesMap, tagsMap)
 }
 
+// GetFileEntriesMap collects all file entries on the specified branches and tags.
+// It returns as GitFiles map with the blob key.
+// The branchesMap's key is branch name, and the value is commitId.
+// The tagsMap's key is tag name, and the value is commitId.
 func (r *GitRepo) GetFileEntriesMap(branchesMap map[string]string, tagsMap map[string]string) (map[string]GitFile, error) {
 	files := make(map[string]GitFile)
 
