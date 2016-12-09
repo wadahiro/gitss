@@ -47,7 +47,8 @@ build:
     - script:
         name: test server side
         code: |
-           go test -v github.com/wadahiro/gitss/server/...
+          npm run bindata
+          go test -v github.com/wadahiro/gitss/server/...
     - script:
         name: build & archive
         code: |
