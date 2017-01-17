@@ -1,4 +1,4 @@
-# GITSS
+# GitSS
 
 [![wercker status](https://app.wercker.com/status/8bb1c52941262ac810ef6219e02937cf/s/develop "wercker status")](https://app.wercker.com/project/byKey/8bb1c52941262ac810ef6219e02937cf)
 
@@ -13,7 +13,7 @@
 
 ## About
 
-`GITSS` is full text source search app for git repositories.
+**GitSS** is full text source search app for git repositories.
 This repository is heavily under development and unstable now.
 
 ## How to use
@@ -170,13 +170,19 @@ yarn
 npm run bindata
  ```
 
-2. Start webpack and gin with watch mode.
+2. Generate vendor.js for development mode.
+
+```
+npm run build:client-dll
+```
+
+3. Start webpack and gin with watch mode.
 
  ```bash
-npm run devserver & fresh
+npm start & fresh
  ```
  
-3. Open http://localhost:9000
+4. Open http://localhost:9000
 
 ### Release Build
 

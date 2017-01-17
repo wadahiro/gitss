@@ -11,7 +11,7 @@
     "build:server-darwin64": "bash build.sh darwin amd64",
     "build:server": "npm run build:server-win64 && npm run build:server-linux64 && npm run build:server-darwin64",
     "build": "cross-env NODE_ENV=production npm run build:client && npm run build:server",
-    "bindata": "go-bindata -debug -o ./server/bindata.go assets/... ./server/templates/...",
+    "bindata": "vendor/bin/go-bindata -debug -o ./server/bindata.go assets/... ./server/templates/...",
     "build:client-dll": "webpack --config=./client/webpack/webpack.dll.js",
     "build:client-app": "webpack --config=./client/webpack/webpack.prod.config.js",
     "build:client": "npm run build:client-dll && npm run build:client-app",
