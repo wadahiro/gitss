@@ -24,9 +24,10 @@ This repository is heavily under development and unstable now.
 
 GitSS use `git` command internaly. So you need to set `PATH` environment variable to use `git` command.
 
-### Install
+### Install Binary
 
-Download binary file for your environment in the [Release Page](https://github.com/wadahiro/gitss/releases). Currently, you can download binary files for Linux(64bit), Darwin(64bit) and Windows(64bit). 
+Download binary file for your environment in the [Release Page](https://github.com/wadahiro/gitss/releases). Currently, you can download binary files for Linux(64bit), Darwin(64bit) and Windows(64bit).
+Then put `gitss` (or `gitss.exe` for Windows) file in the archive into the directory where you'd like to install.
 
 ### Add Setting for a git repository
 
@@ -63,7 +64,7 @@ Also there are more options for `gitss add`. Please check `gitss add --help`.
 ### Add Setting for a Bitbucket server
 
 If you use Bitbucket server, you can sync and index the all repositories easily.
-run `gitss bitbucket add` command as follows.
+Run `gitss bitbucket add` command as follows.
 
  ```bash
 ./gitss bitbucket add yourOrgName http://your-bitbucket-server-site/bitbucket --user=yourId --password=yourPassword
@@ -109,7 +110,7 @@ After adding setting file, run `gitss sync` command with `--all` option as follo
 
 ### Run server
 
-Run `gitss server` command as follows. Then open http://your-server:3000 . In addition, the sync scheduler is started when starting GitSS server. The scheduler do syncing git repository and indexing the contents automatically.
+Run `gitss server` command as follows. Then open http://your-server:3000 in your browser. In addition, the sync scheduler is started when starting GitSS server. The scheduler do syncing git repository and indexing the contents automatically.
 
  ```bash
 ./gitss server
@@ -172,9 +173,9 @@ npm run bindata
 
 2. Generate vendor.js for development mode.
 
-```
+ ```
 npm run build:client-dll
-```
+ ```
 
 3. Start webpack and gin with watch mode.
 
