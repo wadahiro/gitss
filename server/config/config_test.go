@@ -7,7 +7,7 @@ import (
 )
 
 func TestLineScanner(t *testing.T) {
-	os.MkdirAll("./tmp/conf", 0644)
+	os.MkdirAll("./tmp/conf", 0755)
 	c := Config{ConfDir: "./tmp/conf"}
 
 	testConfig := []byte(`{

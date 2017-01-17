@@ -62,13 +62,13 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 }
 
 func (c *Config) init() {
-	if err := os.MkdirAll(c.GitDataDir, 0644); err != nil {
+	if err := os.MkdirAll(c.GitDataDir, 0755); err != nil {
 		log.Fatalln(err)
 	}
-	if err := os.MkdirAll(c.ConfDir, 0644); err != nil {
+	if err := os.MkdirAll(c.ConfDir, 0755); err != nil {
 		log.Fatalln(err)
 	}
-	if err := os.MkdirAll(c.IndexedDir, 0644); err != nil {
+	if err := os.MkdirAll(c.IndexedDir, 0755); err != nil {
 		log.Fatalln(err)
 	}
 	c.reloadSettings()
@@ -528,7 +528,7 @@ func (c *Config) writeIndexed(indexed Indexed) error {
 	content, _ := json.MarshalIndent(indexed, "", "  ")
 	fileName := c.getIndexedFilePath(indexed.Organization, indexed.Project, indexed.Repository)
 
-	if err := os.MkdirAll(fmt.Sprintf("%s/%s/%s", c.IndexedDir, indexed.Organization, indexed.Project), 0644); err != nil {
+	if err := os.MkdirAll(fmt.Sprintf("%s/%s/%s", c.IndexedDir, indexed.Organization, indexed.Project), 0755); err != nil {
 		log.Fatalln(err)
 	}
 
