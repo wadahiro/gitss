@@ -30,12 +30,15 @@ type Config struct {
 	Port        int
 	IndexerType string
 	Schedule    string
+	CloneOnly   bool
 	Debug       bool
 	settings    []SyncSetting
 }
 
 func NewConfig(c *cli.Context, debug bool) *Config {
 	port := c.Int("port")
+	cloneOnly := c.Bool("clone-only")
+
 	dataDir := c.GlobalString("data")
 	gitDataDir := dataDir + "/" + "git"
 	confDir := dataDir + "/" + "conf"
@@ -53,6 +56,7 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		Port:        port,
 		IndexerType: indexerType,
 		Schedule:    schedule,
+		CloneOnly:   cloneOnly,
 		Debug:       false,
 	}
 

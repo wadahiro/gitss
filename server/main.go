@@ -59,6 +59,10 @@ func main() {
 					Name:  "all",
 					Usage: "Sync all git repositories",
 				},
+				cli.BoolFlag{
+					Name:  "clone-only",
+					Usage: "Clone git repositories (not indexing)",
+				},
 			},
 		},
 		{

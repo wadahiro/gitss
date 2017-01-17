@@ -49,6 +49,10 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 
 	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 
+	if g.config.CloneOnly {
+		return
+	}
+
 	// branches and tags in the git repository (include/exclude filters are applied)
 	branchMap, tagMap, err := repo.GetLatestCommitIdsMap()
 	if err != nil {
