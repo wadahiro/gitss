@@ -1,6 +1,6 @@
 {
   "name": "gitss",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "",
   "main": "server/js/index.tsx",
   "author": "",
