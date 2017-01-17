@@ -45,6 +45,11 @@ build:
         code: |
           gom install
     - script:
+        name: test server side
+        code: |
+          vendor/bin/go-bindata -o ./server/bindata.go assets/... ./server/templates/... 
+          go test -v github.com/wadahiro/gitss/server/...
+    - script:
         name: build & archive
         code: |
           npm run build

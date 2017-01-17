@@ -170,13 +170,19 @@ yarn
 npm run bindata
  ```
 
-2. Start webpack and gin with watch mode.
+2. Generate vendor.js for development mode.
+
+```
+npm run build:client-dll
+```
+
+3. Start webpack and gin with watch mode.
 
  ```bash
 npm start & fresh
  ```
  
-3. Open http://localhost:9000
+4. Open http://localhost:9000
 
 ### Release Build
 
