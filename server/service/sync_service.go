@@ -87,9 +87,10 @@ func RunSyncAll(config *config.Config, importer *importer.GitImporter) {
 				log.Printf("Sync for %s:%s/%s\n", setting.GetName(), project.Name, repository.GetName())
 
 				wg.Add(1)
+				s := setting
 				workers <- func() {
 					defer wg.Done()
-					importer.Run(setting.GetName(), project.Name, repository.Url)
+					importer.Run(s.GetName(), project.Name, repository.Url)
 				}
 			}
 		}
