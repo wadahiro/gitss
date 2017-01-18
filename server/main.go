@@ -60,8 +60,12 @@ func main() {
 					Usage: "Sync all git repositories",
 				},
 				cli.BoolFlag{
-					Name:  "clone-only",
-					Usage: "Clone git repositories (not indexing)",
+					Name:  "skip-git-sync",
+					Usage: "Skip syncing with the remote git repository",
+				},
+				cli.BoolFlag{
+					Name:  "skip-index",
+					Usage: "Skip indexing the repository",
 				},
 			},
 		},

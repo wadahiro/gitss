@@ -5,7 +5,6 @@ import (
 	"log"
 	"strings"
 
-	pb "gopkg.in/cheggaaa/pb.v1"
 	// "io"
 	// "io/ioutil"
 	// "os"
@@ -17,6 +16,7 @@ import (
 	"github.com/wadahiro/gitss/server/config"
 	"github.com/wadahiro/gitss/server/indexer"
 	"github.com/wadahiro/gitss/server/repo"
+	"github.com/wadahiro/gitss/server/util"
 	// "github.com/wadahiro/gitss/server/util"
 	"bytes"
 
@@ -37,44 +37,53 @@ func NewGitImporter(config *config.Config, indexer indexer.Indexer) *GitImporter
 }
 
 func (g *GitImporter) Run(organization string, project string, url string) {
-	log.Printf("Clone from %s %s %s\n", organization, project, url)
+	var r *repo.GitRepo
+	var err error
+	if g.config.SkipGitSync {
+		r, err = g.reader.GetGitRepo(organization, project, repo.GetRepoNameFromUrl(url))
+		if err != nil {
+			log.Printf("Not found the cloned repository: %s:%s/%s %+v\n", organization, project, url, err)
+			return
+		}
+	} else {
+		log.Printf("Clone from %s %s %s\n", organization, project, url)
 
-	repo, err := g.reader.CloneGitRepo(organization, project, url)
-	if err != nil {
-		log.Printf("Not found the repository: %s:%s/%s %+v\n", organization, project, url, err)
-		return
+		r, err = g.reader.CloneGitRepo(organization, project, url)
+		if err != nil {
+			log.Printf("Not found the repository: %s:%s/%s %+v\n", organization, project, url, err)
+			return
+		}
+
+		r.FetchAll()
+
+		log.Printf("Fetched all. %s %s %s \n", organization, project, url)
 	}
 
-	repo.FetchAll()
-
-	log.Printf("Fetched all. %s %s %s \n", organization, project, url)
-
-	if g.config.CloneOnly {
+	if g.config.SkipIndex {
 		return
 	}
 
 	// branches and tags in the git repository (include/exclude filters are applied)
-	branchMap, tagMap, err := repo.GetLatestCommitIdsMap()
+	branchMap, tagMap, err := r.GetLatestCommitIdsMap()
 	if err != nil {
 		log.Printf("Failed to get latest commitIds of branch and tag. %+v\n", err)
 		return
 	}
 
 	// branches in the config file
-	indexed := g.config.GetIndexed(organization, project, repo.Repository)
+	indexed := g.config.GetIndexed(organization, project, r.Repository)
 
-	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, repo.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
+	log.Printf("Start indexing for %s:%s/%s branches: %v -> %v, tags: %v -> %v\n", organization, project, r.Repository, indexed.Branches, branchMap, indexed.Tags, tagMap)
 
 	// get sizeLimit for this repository
-	sizeLimit := g.config.GetSizeLimit(organization, project, repo.Repository)
+	sizeLimit := g.config.GetSizeLimit(organization, project, r.Repository)
 
 	// progress bar
-	bar := pb.StartNew(0)
-	bar.ShowPercent = true
+	bar := util.NewProgressBar(0)
 
 	start := time.Now()
 
-	err = g.runIndexing(bar, repo, url, indexed, branchMap, tagMap, sizeLimit)
+	err = g.runIndexing(bar, r, url, indexed, branchMap, tagMap, sizeLimit)
 	if err != nil {
 		log.Printf("Failed to index. %+v", err)
 		return
@@ -95,7 +104,7 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 		}
 	}
 
-	bar.Total = bar.Total + int64(len(removeBranches))
+	bar.AddTotal(len(removeBranches))
 
 	// Remove index for removed tags
 	removeTags := []string{}
@@ -112,25 +121,25 @@ func (g *GitImporter) Run(organization string, project string, url string) {
 		}
 	}
 
-	bar.Total = bar.Total + int64(len(removeTags))
+	bar.AddTotal(len(removeTags))
 
 	if len(removeBranches) > 0 || len(removeTags) > 0 {
-		log.Printf("Start index deleting for %s:%s/%s (%v) (%v)\n", organization, project, repo.Repository, removeBranches, removeTags)
-		g.indexer.DeleteIndexByRefs(organization, project, repo.Repository, removeBranches, removeTags)
+		log.Printf("Start index deleting for %s:%s/%s (%v) (%v)\n", organization, project, r.Repository, removeBranches, removeTags)
+		g.indexer.DeleteIndexByRefs(organization, project, r.Repository, removeBranches, removeTags)
 
 		bar.Add(len(removeBranches) + len(removeTags))
 
 		// Save config after deleting index completed
-		g.config.DeleteIndexed(organization, project, repo.Repository, removeBranches, removeTags)
+		g.config.DeleteIndexed(organization, project, r.Repository, removeBranches, removeTags)
 	}
 
 	end := time.Now()
 	time := (end.Sub(start)).Seconds()
 
-	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, repo.Repository))
+	bar.FinishPrint(fmt.Sprintf("Indexing Complete! [%f seconds] for %s:%s/%s\n", time, organization, project, r.Repository))
 }
 
-func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap, sizeLimit int64) error {
+func (g *GitImporter) runIndexing(bar *util.ProgressBar, repo *repo.GitRepo, url string, indexed config.Indexed, branchMap config.BrancheIndexedMap, tagMap config.TagIndexedMap, sizeLimit int64) error {
 	// collect create file entries
 	createBranches := make(map[string]string)
 	updateBranches := make(map[string][2]string)
@@ -231,7 +240,7 @@ func (g *GitImporter) runIndexing(bar *pb.ProgressBar, repo *repo.GitRepo, url s
 	return nil
 }
 
-func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string, sizeLimit int64) error {
+func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *util.ProgressBar, r *repo.GitRepo, branchMap map[string]string, tagMap map[string]string, updateBranchMap map[string][2]string, updateTagMap map[string][2]string, sizeLimit int64) error {
 	addFiles, err := r.GetFileEntriesMap(branchMap, tagMap)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to get file entries. branches: %v tags: %v", branchMap, tagMap)
@@ -260,7 +269,7 @@ func (g *GitImporter) UpsertIndex(queue chan indexer.FileIndexOperation, bar *pb
 	return nil
 }
 
-func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile, sizeLimit int64) {
+func (g *GitImporter) handleAddFiles(queue chan indexer.FileIndexOperation, bar *util.ProgressBar, r *repo.GitRepo, addFiles map[string]repo.GitFile, sizeLimit int64) {
 	if len(addFiles) == 0 {
 		return
 	}
@@ -292,7 +301,7 @@ type ScannedFile struct {
 	GitFile repo.GitFile
 }
 
-func scanFiles(wg *sync.WaitGroup, scanQueue chan ScannedFile, queue chan indexer.FileIndexOperation, g *GitImporter, r *repo.GitRepo, bar *pb.ProgressBar) {
+func scanFiles(wg *sync.WaitGroup, scanQueue chan ScannedFile, queue chan indexer.FileIndexOperation, g *GitImporter, r *repo.GitRepo, bar *util.ProgressBar) {
 	defer wg.Done()
 
 	for {
@@ -341,7 +350,7 @@ func scanFiles(wg *sync.WaitGroup, scanQueue chan ScannedFile, queue chan indexe
 				Content: text,
 			}
 
-			bar.Total = bar.Total + 1
+			bar.AddTotal(1)
 
 			queue <- indexer.FileIndexOperation{Method: indexer.ADD, FileIndex: fileIndex}
 		}
@@ -378,7 +387,7 @@ func readText(body []byte) (string, string, error) {
 	return string(f), enc, nil
 }
 
-func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, bar *pb.ProgressBar, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
+func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, bar *util.ProgressBar, r *repo.GitRepo, delFiles map[string]repo.GitFile) {
 	for blob, file := range delFiles {
 		for path, loc := range file.Locations {
 			fileIndex := indexer.FileIndex{
@@ -393,7 +402,7 @@ func (g *GitImporter) handleDelFiles(queue chan indexer.FileIndexOperation, bar 
 				},
 			}
 
-			bar.Total = bar.Total + 1
+			bar.AddTotal(1)
 
 			// Delete index
 			queue <- indexer.FileIndexOperation{Method: indexer.DELETE, FileIndex: fileIndex}

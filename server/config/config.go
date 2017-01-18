@@ -30,14 +30,16 @@ type Config struct {
 	Port        int
 	IndexerType string
 	Schedule    string
-	CloneOnly   bool
+	SkipGitSync bool
+	SkipIndex   bool
 	Debug       bool
 	settings    []SyncSetting
 }
 
 func NewConfig(c *cli.Context, debug bool) *Config {
 	port := c.Int("port")
-	cloneOnly := c.Bool("clone-only")
+	skipGitSync := c.Bool("skip-git-sync")
+	skipIndex := c.Bool("skip-index")
 
 	dataDir := c.GlobalString("data")
 	gitDataDir := dataDir + "/" + "git"
@@ -56,7 +58,8 @@ func NewConfig(c *cli.Context, debug bool) *Config {
 		Port:        port,
 		IndexerType: indexerType,
 		Schedule:    schedule,
-		CloneOnly:   cloneOnly,
+		SkipGitSync: skipGitSync,
+		SkipIndex:   skipIndex,
 		Debug:       false,
 	}
 
